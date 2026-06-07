@@ -36,13 +36,7 @@ class Game:
 
         self.create_world()
 
-    # ==================================================
-    # WORLD CREATION
-    # ==================================================
-
     def create_world(self):
-
-        # ---------- ROOMS ----------
 
         self.cell = Room(
             "Cell",
@@ -123,9 +117,7 @@ Type 'status' to check lock progress at any time.
 """
         )
 
-        # ---------- CONNECTIONS ----------
-
-        self.cell.connect("east", self.hall)   # locked until key is used — enforced in process()
+        self.cell.connect("east", self.hall)
 
         self.hall.connect("west", self.cell)
         self.hall.connect("east", self.lab)
@@ -141,8 +133,6 @@ Type 'status' to check lock progress at any time.
         self.lab.connect("east", self.exit_room)
 
         self.exit_room.connect("west", self.lab)
-
-        # ---------- ITEMS ----------
 
         key = Item(
             "Key",
@@ -213,7 +203,6 @@ Type 'status' to check lock progress at any time.
             hint="Insert into the lab terminal to decrypt classified files."
         )
 
-        # Vent item: a torn journal page that reveals the server room puzzle answer
         journal_page = Item(
             "JournalPage",
             "A torn page from someone's personal log. The handwriting is frantic.",
@@ -240,8 +229,6 @@ Type 'status' to check lock progress at any time.
 
         self.lab.add_item(battery)
         self.lab.add_item(access_card)
-
-        # ---------- PUZZLES ----------
 
         self.cell.puzzle = Puzzle(
             """
@@ -301,7 +288,6 @@ Hint: energy + access system required.
             required_item="Battery"
         )
 
-        # Exit puzzle — only shown after locks 1 & 2 are cleared
         self.exit_room.puzzle = Puzzle(
             """
 LOCK 3 — LOGIC GATE ACTIVE
@@ -317,8 +303,6 @@ The cursor blinks. One chance. Choose your words carefully.
             "echo",
             "LOCK 3 DISENGAGED.\nAll systems nominal. The door is yours."
         )
-
-        # ---------- NPC ----------
 
         dialogue_tree = {
 
@@ -368,8 +352,6 @@ The cursor blinks. One chance. Choose your words carefully.
             dialogue_tree
         )
 
-        # ---------- REGISTER ROOMS ----------
-
         self.rooms = {
             "Cell": self.cell,
             "Hall": self.hall,
@@ -379,13 +361,7 @@ The cursor blinks. One chance. Choose your words carefully.
             "Exit": self.exit_room,
         }
 
-        # ---------- PLAYER ----------
-
         self.player = Player(self.cell)
-
-    # ==================================================
-    # HELP
-    # ==================================================
 
     def help(self):
 
@@ -425,10 +401,6 @@ System:
 =============================
 """
 
-    # ==================================================
-    # EXIT DOOR STATUS
-    # ==================================================
-
     def exit_status(self):
 
         def mark(done):
@@ -461,10 +433,6 @@ System:
 
         return "\n".join(lines)
 
-    # ==================================================
-    # COMMANDS
-    # ==================================================
-
     def process(self, command):
 
         parts = command.split()
@@ -474,8 +442,6 @@ System:
 
         action = parts[0].lower()
 
-        # ---------- MOVEMENT ----------
-
         if action == "go":
 
             if len(parts) < 2:
@@ -484,7 +450,6 @@ System:
             direction = parts[1].lower()
             room = self.player.current_room
 
-            # Block leaving the cell until the key is used
             if room == self.cell and direction == "east":
                 if not self.flags["cell_unlocked"]:
                     return (
@@ -493,7 +458,6 @@ System:
                         "Hint: you picked up something that might help."
                     )
 
-            # Block vent entry without VentTool
             if room == self.hall and direction == "north":
                 if not self.player.has_item("VentTool"):
                     return (
@@ -501,7 +465,6 @@ System:
                         "You need something to unscrew it."
                     )
 
-            # Dramatic entry into the Exit room
             if room == self.lab and direction == "east":
                 result = self.player.move(direction)
                 if self.player.current_room == self.exit_room:
@@ -519,15 +482,12 @@ System:
 
             result = self.player.move(direction)
 
-            # Achievement: first time in vent
             if self.player.current_room == self.vent and not self.flags["vent_crawled"]:
                 self.flags["vent_crawled"] = True
                 self.achievements.unlock("Air Crawler")
                 result += "\nAchievement unlocked: Air Crawler!"
 
             return result
-
-        # ---------- LOOK ----------
 
         elif action == "look":
 
@@ -541,16 +501,12 @@ System:
 
             return desc
 
-        # ---------- STATUS ----------
-
         elif action == "status":
 
             if self.player.current_room != self.exit_room:
                 return "Nothing to check here."
 
             return self.exit_status()
-
-        # ---------- ITEMS ----------
 
         elif action == "items":
             return self.player.current_room.list_items()
@@ -565,8 +521,6 @@ System:
         elif action == "inv":
             return self.player.show_inventory()
 
-        # ---------- USE ITEM ----------
-
         elif action == "use":
 
             if len(parts) < 2:
@@ -574,16 +528,12 @@ System:
 
             return self.use_item(parts[1])
 
-        # ---------- INSPECT ITEM ----------
-
         elif action == "inspect":
 
             if len(parts) < 2:
                 return "Inspect what?"
 
             return self.inspect_item(parts[1])
-
-        # ---------- NPC ----------
 
         elif action == "talk":
 
@@ -613,8 +563,6 @@ System:
             except ValueError:
                 return "Invalid choice."
 
-        # ---------- PUZZLES ----------
-
         elif action == "puzzle":
 
             room = self.player.current_room
@@ -638,7 +586,6 @@ System:
             if not room.puzzle:
                 return "No puzzle here."
 
-            # Guard exit puzzle behind locks 1 & 2
             if room == self.exit_room:
                 if not self.flags["exit_card_used"]:
                     return "You can't solve the logic gate yet. Clear Lock 1 first.\nHint: use your AccessCard."
@@ -672,12 +619,8 @@ System:
 
             return result
 
-        # ---------- ACHIEVEMENTS ----------
-
         elif action == "achievements":
             return self.achievements.show()
-
-        # ---------- SAVE ----------
 
         elif action == "save":
             SaveManager.save(self)
@@ -687,22 +630,14 @@ System:
             data = SaveManager.load()
             return self.apply_load(data)
 
-        # ---------- HELP ----------
-
         elif action == "help":
             return self.help()
-
-        # ---------- QUIT ----------
 
         elif action == "quit":
             self.running = False
             return "Goodbye."
 
         return f"Unknown command: '{action}'. Type 'help' for a list of commands."
-
-    # ==================================================
-    # USE ITEM (context-aware)
-    # ==================================================
 
     def use_item(self, item_name):
 
@@ -717,7 +652,6 @@ System:
         if not item:
             return f"You don't have '{item_name}' in your inventory."
 
-        # ---- JOURNAL PAGE ----
         if item.name == "JournalPage":
             return (
                 "You unfold the torn page and read carefully:\n\n"
@@ -728,7 +662,6 @@ System:
                 "Sounds like the answer might be: 7b3"
             )
 
-        # ---- KEY ----
         if item.name == "Key":
             if room == self.cell:
                 if self.flags["cell_unlocked"]:
@@ -742,7 +675,6 @@ System:
                 )
             return "There's nothing here to use the Key on."
 
-        # ---- NOTE ----
         if item.name == "Note":
             return (
                 "You unfold the crumpled note and read:\n\n"
@@ -753,7 +685,6 @@ System:
                 "Think it through and use: solve <code>"
             )
 
-        # ---- WIRE ----
         if item.name == "Wire":
             if self.player.has_item("Battery"):
                 if room == self.lab:
@@ -768,7 +699,6 @@ System:
                 return "The Wire and Battery are ready — find something to power."
             return "The Wire needs a power source. Maybe that Battery would help."
 
-        # ---- BATTERY ----
         if item.name == "Battery":
             if self.player.has_item("Wire"):
                 if room == self.lab:
@@ -782,7 +712,6 @@ System:
                 return "Battery + Wire are ready. Find something that needs power."
             return "The Battery needs a conductor. The Wire might work."
 
-        # ---- VENT TOOL ----
         if item.name == "VentTool":
             if room == self.hall:
                 return (
@@ -792,7 +721,6 @@ System:
                 )
             return "You turn the screwdriver in your hand. Nothing to unscrew here."
 
-        # ---- KEYCARD FRAGMENT ----
         if item.name == "KeycardFragment":
             if self.player.has_item("AccessCard"):
                 return (
@@ -803,13 +731,11 @@ System:
                 )
             return "The fragment is incomplete. You need the other half — an AccessCard."
 
-        # ---- ACCESS CARD ----
         if item.name == "AccessCard":
             if room == self.exit_room:
                 return self._swipe_exit_card()
             return "You wave the card around. Nothing responds to it here."
 
-        # ---- DATA CHIP ----
         if item.name == "DataChip":
             if room == self.lab:
                 if self.flags.get("lab_unlocked"):
@@ -831,15 +757,10 @@ System:
                 )
             return "You need a terminal to read this chip. The lab might have one."
 
-        # ---- FALLBACK ----
         if item.hint:
             return f"You use the {item.name}.\nHint: {item.hint}"
 
         return item.inspect()
-
-    # ==================================================
-    # EXIT DOOR LOCK HELPERS
-    # ==================================================
 
     def _swipe_exit_card(self):
 
@@ -887,10 +808,6 @@ System:
             "Type 'puzzle' to face Lock 3."
         )
 
-    # ==================================================
-    # INSPECT ITEM
-    # ==================================================
-
     def inspect_item(self, item_name):
 
         item_name_lower = item_name.lower()
@@ -911,10 +828,6 @@ System:
 
         return item.inspect()
 
-    # ==================================================
-    # STORY CHECKS
-    # ==================================================
-
     def check_endings(self):
 
         if (
@@ -928,10 +841,6 @@ System:
                 self.endings.set("good")
 
             self.running = False
-
-    # ==================================================
-    # SAVE / LOAD
-    # ==================================================
 
     def apply_load(self, data):
 
