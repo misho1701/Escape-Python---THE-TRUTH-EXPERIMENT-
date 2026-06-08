@@ -27,6 +27,9 @@ class Game:
             "lab_unlocked": False,
             "vent_crawled": False,
             "server_hacked": False,
+            "guard_alarmed": False,
+            "scientist_met": False,
+            "scientist_trusted": False,
             # Exit door locks
             "exit_card_used": False,
             "exit_power_cut": False,
@@ -86,7 +89,8 @@ Rows of humming server racks fill the room.
 Blinking LEDs cast a cold blue glow.
 A console terminal sits in the corner, still running.
 
-The servers contain something important — if you can access them.
+A woman sits hunched against the far wall, arms around her knees.
+She looks up when you enter.
 """
         )
 
@@ -304,53 +308,410 @@ The cursor blinks. One chance. Choose your words carefully.
             "LOCK 3 DISENGAGED.\nAll systems nominal. The door is yours."
         )
 
-        dialogue_tree = {
+        guard_tree = {
 
             "start": {
-                "text":
-                    "Guard: You shouldn't be awake...",
+                "text": (
+                    "Guard: *startled* You're awake? You shouldn't be.\n"
+                    "       They said the sedative would last until morning."
+                ),
                 "options": [
-                    {
-                        "text": "Who are you?",
-                        "next": "ask"
-                    },
-                    {
-                        "text": "Let me out!",
-                        "next": "angry"
-                    }
+                    {"text": "Who are you?",              "next": "who"},
+                    {"text": "Where am I?",               "next": "where"},
+                    {"text": "Get me out of here. Now.",  "next": "demand"},
+                    {"text": "...",                       "next": "silent"},
                 ]
             },
 
-            "ask": {
-                "text":
-                    "Guard: This place isn't what it seems.",
+            "who": {
+                "text": (
+                    "Guard: *lowers voice* My name doesn't matter.\n"
+                    "       I've worked here three years. I used to believe in the project.\n"
+                    "       Now... I'm not sure what I believe."
+                ),
                 "options": [
-                    {
-                        "text": "Tell me more.",
-                        "next": "truth",
-                        "result":
-                            "The guard looks around nervously."
-                    }
+                    {"text": "What project?",            "next": "project"},
+                    {"text": "You sound guilty.",        "next": "guilt"},
+                    {"text": "Help me escape.",          "next": "help_ask"},
                 ]
             },
 
-            "truth": {
-                "text":
-                    "Guard: You were part of the experiment.",
-                "options": []
+            "where": {
+                "text": (
+                    "Guard: Underground research facility. Sector 7.\n"
+                    "       We're sixty metres below the surface.\n"
+                    "       Nobody knows this place exists."
+                ),
+                "options": [
+                    {"text": "Who built this place?",    "next": "built"},
+                    {"text": "How do I get out?",        "next": "exit_hint"},
+                    {"text": "What am I doing here?",    "next": "subject"},
+                ]
             },
 
-            "angry": {
-                "text":
-                    "Guard: Then find your own way out.",
+            "demand": {
+                "text": (
+                    "Guard: *steps back* Keep your voice down.\n"
+                    "       If the cameras pick up movement in this block,\n"
+                    "       we're both finished."
+                ),
+                "options": [
+                    {"text": "Then help me quietly.",    "next": "help_ask"},
+                    {"text": "I don't care. Open it.",   "next": "threaten"},
+                    {"text": "Sorry. I'm scared.",       "next": "apologise"},
+                ]
+            },
+
+            "silent": {
+                "text": (
+                    "Guard: *watches you carefully*\n"
+                    "       Smart. The walls have ears here.\n"
+                    "       *slips something under the door*\n"
+                    "       That key opens the east corridor. Use it wisely."
+                ),
+                "options": [],
+                "flag": "trusted_guard"
+            },
+
+            "project": {
+                "text": (
+                    "Guard: Project ECHO. Memory reconstruction research.\n"
+                    "       They said it was voluntary. It wasn't.\n"
+                    "       The subjects didn't know who they were before they arrived."
+                ),
+                "options": [
+                    {"text": "Am I one of the subjects?",    "next": "subject"},
+                    {"text": "Who ran the project?",         "next": "who_ran"},
+                ]
+            },
+
+            "guilt": {
+                "text": (
+                    "Guard: *long pause*\n"
+                    "       I reported what I saw once. They transferred me to night shift.\n"
+                    "       After that I stopped asking questions.\n"
+                    "       I should have kept asking."
+                ),
+                "options": [
+                    {"text": "It's not too late.",       "next": "help_ask"},
+                    {"text": "You're complicit.",        "next": "accuse"},
+                ]
+            },
+
+            "built": {
+                "text": (
+                    "Guard: A private research group. Government contract.\n"
+                    "       The lead researcher designed the whole thing.\n"
+                    "       Brilliant person. Completely lost their mind by year two."
+                ),
+                "options": [
+                    {"text": "What happened to the researcher?", "next": "researcher"},
+                ]
+            },
+
+            "exit_hint": {
+                "text": (
+                    "Guard: The main door needs a card, a power bypass, and a passphrase.\n"
+                    "       The passphrase is the name of the project.\n"
+                    "       *glances at camera* That's all I can say."
+                ),
+                "options": [],
+                "flag": "trusted_guard"
+            },
+
+            "subject": {
+                "text": (
+                    "Guard: *can't meet your eyes*\n"
+                    "       Subject zero. The first one.\n"
+                    "       You weren't supposed to wake up this lucid."
+                ),
+                "options": [
+                    {"text": "Subject zero — what does that mean?", "next": "zero"},
+                ]
+            },
+
+            "help_ask": {
+                "text": (
+                    "Guard: I can't open the door. My clearance was revoked last week.\n"
+                    "       But there are ways out that aren't on the official map.\n"
+                    "       Check the ventilation system. And find the lab terminal."
+                ),
+                "options": [],
+                "flag": "trusted_guard"
+            },
+
+            "threaten": {
+                "text": (
+                    "Guard: *expression hardens*\n"
+                    "       You just made a mistake.\n"
+                    "       *reaches for the alarm panel*"
+                ),
+                "options": [
+                    {"text": "Wait — stop!", "next": "alarm_stop"},
+                    {"text": "Do it then.",  "next": "alarm_trigger"},
+                ]
+            },
+
+            "apologise": {
+                "text": (
+                    "Guard: *softens slightly*\n"
+                    "       It's okay. I'd be scared too.\n"
+                    "       Listen — I want to help. But I can't be seen doing it."
+                ),
+                "options": [
+                    {"text": "What can you tell me?",    "next": "exit_hint"},
+                ]
+            },
+
+            "accuse": {
+                "text": (
+                    "Guard: *jaw tightens*\n"
+                    "       Yes. I am.\n"
+                    "       And I have to live with that.\n"
+                    "       Don't push me further."
+                ),
+                "options": [
+                    {"text": "Help me and make it right.", "next": "help_ask"},
+                    {"text": "I'm done talking.",          "next": "done"},
+                ]
+            },
+
+            "who_ran": {
+                "text": (
+                    "Guard: The lead researcher. Brilliant. Obsessive.\n"
+                    "       They called the project ECHO because of something they said:\n"
+                    "       'Memory is just an echo of who we used to be.'"
+                ),
+                "options": [
+                    {"text": "What happened to them?",   "next": "researcher"},
+                ]
+            },
+
+            "researcher": {
+                "text": (
+                    "Guard: *hesitates*\n"
+                    "       They disappeared. Six months ago.\n"
+                    "       Some say they were the first test subject.\n"
+                    "       *stares at you*\n"
+                    "       You have their eyes."
+                ),
+                "options": [],
+                "flag": "found_truth"
+            },
+
+            "zero": {
+                "text": (
+                    "Guard: Subject zero was the researcher themselves.\n"
+                    "       They volunteered first. Said it was the only ethical thing to do.\n"
+                    "       The memory wipe worked too well. They forgot everything.\n"
+                    "       Even that they built this place."
+                ),
+                "options": [],
+                "flag": "found_truth"
+            },
+
+            "alarm_stop": {
+                "text": (
+                    "Guard: *hand hovers over the panel*\n"
+                    "       Give me one reason."
+                ),
+                "options": [
+                    {"text": "I just want to go home.",      "next": "alarm_mercy"},
+                    {"text": "I'll tell them you helped me.", "next": "alarm_trigger"},
+                ]
+            },
+
+            "alarm_mercy": {
+                "text": (
+                    "Guard: *slowly lowers hand*\n"
+                    "       ...\n"
+                    "       Get out of here. And don't look back."
+                ),
+                "options": [],
+                "flag": "trusted_guard"
+            },
+
+            "alarm_trigger": {
+                "text": (
+                    "Guard: *slams the alarm*\n\n"
+                    "RED LIGHTS FLOOD THE CORRIDOR.\n"
+                    "A siren WAILS through the facility.\n\n"
+                    "Guard: You brought this on yourself."
+                ),
+                "options": [],
+                "flag": "guard_alarmed"
+            },
+
+            "done": {
+                "text": (
+                    "Guard: *turns away*\n"
+                    "       Then we're done here."
+                ),
                 "options": []
-            }
+            },
         }
 
-        self.guard = NPC(
-            "Guard",
-            dialogue_tree
-        )
+        self.guard = NPC("Guard", guard_tree)
+
+        scientist_tree = {
+
+            "start": {
+                "text": (
+                    "Scientist: *looks up with hollow eyes*\n"
+                    "           Oh. Another one of them let you out?\n"
+                    "           Or did you get out yourself?"
+                ),
+                "options": [
+                    {"text": "I got out myself. Who are you?",  "next": "who"},
+                    {"text": "Are you trapped too?",            "next": "trapped"},
+                    {"text": "I need help getting out.",        "next": "help"},
+                ]
+            },
+
+            "who": {
+                "text": (
+                    "Scientist: Dr. Voss. Junior researcher, Project ECHO.\n"
+                    "           I was supposed to leave six months ago.\n"
+                    "           They said the exit was 'temporarily sealed'.\n"
+                    "           I stopped believing that around month three."
+                ),
+                "options": [
+                    {"text": "What is Project ECHO?",           "next": "echo"},
+                    {"text": "Can you help me escape?",         "next": "help"},
+                    {"text": "Do you know who I am?",           "next": "identity"},
+                ]
+            },
+
+            "trapped": {
+                "text": (
+                    "Scientist: Since the lockdown, yes.\n"
+                    "           I have food from the supply cache. Power from the servers.\n"
+                    "           What I don't have is a working keycard.\n"
+                    "           Mine shattered when I dropped it."
+                ),
+                "options": [
+                    {"text": "I might be able to help with that.", "next": "card_offer"},
+                    {"text": "Tell me about this place.",          "next": "echo"},
+                ]
+            },
+
+            "help": {
+                "text": (
+                    "Scientist: The exit door has three locks.\n"
+                    "           Card reader, power conduit, and a logic gate.\n"
+                    "           The logic gate answer is the name of this project.\n"
+                    "           Four letters. Think about what an echo is."
+                ),
+                "options": [
+                    {"text": "Thank you. One more thing...",     "next": "identity"},
+                    {"text": "What about the card reader?",      "next": "card_hint"},
+                ]
+            },
+
+            "echo": {
+                "text": (
+                    "Scientist: Memory reconstruction. They could erase specific memories\n"
+                    "           and replace them. Or just... wipe everything.\n"
+                    "           The lead researcher called it 'giving people a clean slate'.\n"
+                    "           I called it a human rights violation."
+                ),
+                "options": [
+                    {"text": "Who was the lead researcher?",     "next": "researcher"},
+                    {"text": "Were the subjects willing?",       "next": "willing"},
+                ]
+            },
+
+            "identity": {
+                "text": (
+                    "Scientist: *studies your face*\n"
+                    "           I thought so when you walked in.\n"
+                    "           You're not just a subject.\n"
+                    "           There's a DataChip in these servers. Find it.\n"
+                    "           Read it in the lab. Then you'll know."
+                ),
+                "options": [],
+                "flag": "scientist_trusted"
+            },
+
+            "card_offer": {
+                "text": (
+                    "Scientist: *stands up slowly*\n"
+                    "           The fragment is behind rack seven. I couldn't reach it.\n"
+                    "           If you have an AccessCard, the two pieces bond together —\n"
+                    "           the chips are paired. Same batch."
+                ),
+                "options": [
+                    {"text": "I'll look for it.",               "next": "card_thanks"},
+                ]
+            },
+
+            "card_hint": {
+                "text": (
+                    "Scientist: You need an AccessCard — there's one in the lab.\n"
+                    "           But it's broken. The fragment that completes it\n"
+                    "           is somewhere in this room."
+                ),
+                "options": [
+                    {"text": "Got it. What about the passphrase?", "next": "help"},
+                ]
+            },
+
+            "researcher": {
+                "text": (
+                    "Scientist: The most brilliant person I've ever met.\n"
+                    "           And the most reckless.\n"
+                    "           They went through the procedure themselves.\n"
+                    "           Voluntarily. First subject.\n"
+                    "           We never saw them again after that."
+                ),
+                "options": [
+                    {"text": "Do you think they're still here?", "next": "still_here"},
+                ]
+            },
+
+            "willing": {
+                "text": (
+                    "Scientist: At first. The early subjects signed consent forms.\n"
+                    "           Then the funding ran out and the forms... stopped.\n"
+                    "           I raised concerns. They locked down the facility.\n"
+                    "           That was six months ago."
+                ),
+                "options": [
+                    {"text": "Who was funding this?",           "next": "funding"},
+                ]
+            },
+
+            "still_here": {
+                "text": (
+                    "Scientist: *very quietly*\n"
+                    "           Yes.\n"
+                    "           I think they're standing right in front of me."
+                ),
+                "options": [],
+                "flag": "found_truth"
+            },
+
+            "funding": {
+                "text": (
+                    "Scientist: Government black budget. No paper trail.\n"
+                    "           When I tried to document it, my files were deleted.\n"
+                    "           These servers hold the only remaining copies.\n"
+                    "           That's why I've been protecting them."
+                ),
+                "options": []
+            },
+
+            "card_thanks": {
+                "text": (
+                    "Scientist: Be careful out there.\n"
+                    "           And if you make it out...\n"
+                    "           tell someone what happened here."
+                ),
+                "options": []
+            },
+        }
+
+        self.scientist = NPC("Scientist", scientist_tree)
 
         self.rooms = {
             "Cell": self.cell,
@@ -360,6 +721,8 @@ The cursor blinks. One chance. Choose your words carefully.
             "Laboratory": self.lab,
             "Exit": self.exit_room,
         }
+
+        # ---------- PLAYER ----------
 
         self.player = Player(self.cell)
 
@@ -406,10 +769,6 @@ System:
         def mark(done):
             return "GREEN  ✓" if done else "RED    ✗"
 
-        lock3_available = (
-            self.flags["exit_card_used"] and
-            self.flags["exit_power_cut"]
-        )
         lock3_done = self.exit_room.puzzle.solved
 
         lines = [
@@ -487,13 +846,20 @@ System:
                 self.achievements.unlock("Air Crawler")
                 result += "\nAchievement unlocked: Air Crawler!"
 
+            if self.player.current_room == self.server_room and not self.flags["scientist_met"]:
+                self.flags["scientist_met"] = True
+                result += (
+                    "\n\nA woman looks up from the corner of the room.\n"
+                    "She seems surprised but not hostile.\n"
+                    "Type 'talk' to speak with her."
+                )
+
             return result
 
         elif action == "look":
 
             room = self.player.current_room
             exits = ", ".join(room.connections.keys()) or "none"
-
             desc = room.description + f"\nExits: {exits}\n\nItems:\n" + room.list_items()
 
             if room == self.exit_room:
@@ -537,11 +903,16 @@ System:
 
         elif action == "talk":
 
-            if self.player.current_room != self.hall:
-                return "There's no one here to talk to."
+            room = self.player.current_room
 
-            self.flags["met_guard"] = True
-            return self.guard.talk()
+            if room == self.hall:
+                self.flags["met_guard"] = True
+                return self.guard.talk()
+
+            if room == self.server_room:
+                return self.scientist.talk()
+
+            return "There's no one here to talk to."
 
         elif action == "choose":
 
@@ -549,16 +920,16 @@ System:
                 return "Choose which option?"
 
             try:
-
                 choice = int(parts[1])
-                result = self.guard.choose(choice)
+                room = self.player.current_room
 
-                if self.guard.state == "truth":
-                    self.flags["found_truth"] = True
-                    self.achievements.unlock("Truth Seeker")
-                    result += "\nAchievement unlocked: Truth Seeker!"
+                if room == self.hall:
+                    return self._guard_choose(choice)
 
-                return result
+                if room == self.server_room:
+                    return self._scientist_choose(choice)
+
+                return "No one to choose with."
 
             except ValueError:
                 return "Invalid choice."
@@ -588,9 +959,9 @@ System:
 
             if room == self.exit_room:
                 if not self.flags["exit_card_used"]:
-                    return "You can't solve the logic gate yet. Clear Lock 1 first.\nHint: use your AccessCard."
+                    return "Clear Lock 1 first.\nHint: use your AccessCard."
                 if not self.flags["exit_power_cut"]:
-                    return "You can't solve the logic gate yet. Clear Lock 2 first.\nHint: use Wire + Battery to cut power."
+                    return "Clear Lock 2 first.\nHint: use Wire + Battery to cut power."
 
             answer = " ".join(parts[1:])
             result = room.puzzle.try_solve(answer, self.player)
@@ -617,6 +988,16 @@ System:
                         "You step forward."
                     )
 
+            else:
+                if room == self.exit_room:
+                    self.failed_attempts += 1
+                    remaining = 3 - self.failed_attempts
+                    if remaining > 0:
+                        result += f"\n\nWarning: security system has registered a failed attempt."
+                        result += f"\n{remaining} attempt(s) remaining before lockdown."
+                    else:
+                        result += self._trigger_bad_ending()
+
             return result
 
         elif action == "achievements":
@@ -638,6 +1019,76 @@ System:
             return "Goodbye."
 
         return f"Unknown command: '{action}'. Type 'help' for a list of commands."
+
+    def _guard_choose(self, choice):
+
+        result = self.guard.choose(choice)
+        node = self.guard.dialogue_tree.get(self.guard.state, {})
+        flag = node.get("flag")
+
+        if flag == "trusted_guard":
+            self.flags["trusted_guard"] = True
+            self.achievements.unlock("Trusted")
+
+        if flag == "found_truth":
+            self.flags["found_truth"] = True
+            self.achievements.unlock("Truth Seeker")
+            result += "\nAchievement unlocked: Truth Seeker!"
+
+        if flag == "guard_alarmed":
+            self.flags["guard_alarmed"] = True
+            result += self._trigger_bad_ending()
+
+        return result
+
+    def _scientist_choose(self, choice):
+
+        result = self.scientist.choose(choice)
+        node = self.scientist.dialogue_tree.get(self.scientist.state, {})
+        flag = node.get("flag")
+
+        if flag == "scientist_trusted":
+            self.flags["scientist_trusted"] = True
+
+        if flag == "found_truth":
+            self.flags["found_truth"] = True
+            self.achievements.unlock("Truth Seeker")
+            result += "\nAchievement unlocked: Truth Seeker!"
+
+        return result
+
+    def _trigger_bad_ending(self):
+
+        self.endings.set("bad")
+        self.running = False
+
+        if self.flags.get("guard_alarmed"):
+            return (
+                "\n\n╔══════════════════════════════════╗\n"
+                "║     SECURITY LOCKDOWN ACTIVE     ║\n"
+                "╚══════════════════════════════════╝\n\n"
+                "Boots thunder down the corridor.\n"
+                "Three guards round the corner at a sprint.\n\n"
+                "You back against the wall. There's nowhere to go.\n\n"
+                "Guard: *coldly* Take them back to the cell.\n"
+                "       Increase the sedative dosage.\n\n"
+                "The last thing you see is the ceiling lights\n"
+                "blurring as they carry you away."
+            )
+        else:
+            return (
+                "\n\n╔══════════════════════════════════╗\n"
+                "║     SECURITY LOCKDOWN ACTIVE     ║\n"
+                "╚══════════════════════════════════╝\n\n"
+                "The door panel SCREAMS an alert.\n"
+                "Red lights strobe across the room.\n\n"
+                "A synthesized voice announces:\n"
+                "  'INTRUSION DETECTED. MAXIMUM SECURITY PROTOCOL ENGAGED.'\n\n"
+                "Steel shutters slam down over every exit.\n"
+                "The room pressurizes with a hiss.\n\n"
+                "You sink to the floor.\n"
+                "The facility has won."
+            )
 
     def use_item(self, item_name):
 
@@ -830,6 +1281,9 @@ System:
 
     def check_endings(self):
 
+        if not self.running:
+            return
+
         if (
             self.player.current_room == self.exit_room
             and self.exit_room.puzzle
@@ -864,9 +1318,7 @@ System:
                 self.player.inventory.append(name_to_item[item_name])
 
         self.flags = data.get("flags", self.flags)
-
         self.achievements.unlocked = set(data.get("achievements", []))
-
         self.failed_attempts = data.get("failed_attempts", 0)
 
         return "Game loaded successfully."
