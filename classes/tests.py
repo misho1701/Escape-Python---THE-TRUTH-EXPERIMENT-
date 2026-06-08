@@ -13,6 +13,7 @@ from endings import Endings
 from save_manager import SaveManager
 from game import Game
 
+
 class TestRoom(unittest.TestCase):
 
     def setUp(self):
@@ -66,6 +67,7 @@ class TestRoom(unittest.TestCase):
         self.room.connect("north", north)
         self.room.connect("south", south)
         self.assertEqual(len(self.room.connections), 2)
+
 
 class TestPlayer(unittest.TestCase):
 
@@ -175,6 +177,7 @@ class TestItem(unittest.TestCase):
         item = Item("Key", "A key.")
         self.assertEqual(str(item), "Key")
 
+
 class TestPuzzle(unittest.TestCase):
 
     def setUp(self):
@@ -228,6 +231,7 @@ class TestPuzzle(unittest.TestCase):
         result = self.puzzle.try_solve("4")
         self.assertIn("Correct!", result)
 
+
 class TestNPC(unittest.TestCase):
 
     def setUp(self):
@@ -277,7 +281,7 @@ class TestNPC(unittest.TestCase):
         self.assertEqual(self.npc.state, "start")
 
     def test_choose_no_options_available(self):
-        self.npc.choose(1)
+        self.npc.choose(1)  # move to greet (no options)
         result = self.npc.choose(1)
         self.assertTrue(
             "Invalid" in result or "No choices" in result
@@ -301,6 +305,7 @@ class TestNPC(unittest.TestCase):
         npc = NPC("Test", tree)
         result = npc.choose(1)
         self.assertEqual(result, "You wave back.")
+
 
 class TestAchievements(unittest.TestCase):
 
@@ -335,6 +340,7 @@ class TestAchievements(unittest.TestCase):
         for name in names:
             self.ach.unlock(name)
         self.assertEqual(len(self.ach.unlocked), 4)
+
 
 class TestEndings(unittest.TestCase):
 
@@ -374,6 +380,7 @@ class TestEndings(unittest.TestCase):
     def test_show_no_ending(self):
         result = self.endings.show()
         self.assertIn("No ending", result)
+
 
 class TestSaveManager(unittest.TestCase):
 
@@ -451,6 +458,7 @@ class TestSaveManager(unittest.TestCase):
         self.assertEqual(game2.player.current_room.name, "Hall")
 
 
+
 class TestGameWorld(unittest.TestCase):
 
     def setUp(self):
@@ -516,6 +524,7 @@ class TestGameWorld(unittest.TestCase):
             self.assertIn(flag, self.game.flags)
             self.assertFalse(self.game.flags[flag])
 
+
 class TestGameMovement(unittest.TestCase):
 
     def setUp(self):
@@ -579,6 +588,7 @@ class TestGameMovement(unittest.TestCase):
         self.game.process("go down")
         self.assertTrue(self.game.flags["scientist_met"])
 
+
 class TestGameItemUsage(unittest.TestCase):
 
     def setUp(self):
@@ -593,35 +603,41 @@ class TestGameItemUsage(unittest.TestCase):
         result = self.game.process("use Key")
         self.assertIn("CLUNK", result)
         self.assertTrue(self.game.flags["cell_unlocked"])
+        self.assertFalse(self.game.player.has_item("Key"))
 
     def test_use_key_already_unlocked(self):
-        self.game.process("take Key")
-        self.game.process("use Key")
+        self.game.flags["cell_unlocked"] = True
+        self._give("Key")
         result = self.game.process("use Key")
         self.assertIn("already", result.lower())
+        self.assertTrue(self.game.player.has_item("Key"))
 
     def test_use_key_wrong_room(self):
         self.game.player.current_room = self.game.hall
         self._give("Key")
         result = self.game.process("use Key")
         self.assertIn("nothing", result.lower())
+        self.assertTrue(self.game.player.has_item("Key"))
 
     def test_use_note_shows_riddle_not_answer(self):
         self.game.process("take Note")
         result = self.game.process("use Note")
         self.assertIn("corners of a square", result)
         self.assertNotIn("423", result)
+        self.assertTrue(self.game.player.has_item("Note"))
 
     def test_use_wire_without_battery(self):
         self._give("Wire")
         result = self.game.process("use Wire")
         self.assertIn("Battery", result)
+        self.assertTrue(self.game.player.has_item("Wire"))
 
     def test_use_wire_with_battery_in_lab(self):
         self.game.player.current_room = self.game.lab
         self._give("Wire", "Battery")
         result = self.game.process("use Wire")
         self.assertIn("terminal", result.lower())
+        self.assertTrue(self.game.player.has_item("Wire"))
 
     def test_use_battery_without_wire(self):
         self._give("Battery")
@@ -633,17 +649,20 @@ class TestGameItemUsage(unittest.TestCase):
         self._give("VentTool")
         result = self.game.process("use VentTool")
         self.assertIn("grate", result.lower())
+        self.assertFalse(self.game.player.has_item("VentTool"))
 
     def test_use_venttool_wrong_room(self):
         self._give("VentTool")
         result = self.game.process("use VentTool")
         self.assertIn("nothing", result.lower())
+        self.assertTrue(self.game.player.has_item("VentTool"))
 
     def test_use_keycard_without_fragment(self):
         self.game.player.current_room = self.game.exit_room
         self._give("AccessCard")
         result = self.game.process("use AccessCard")
         self.assertIn("REJECTED", result)
+        self.assertTrue(self.game.player.has_item("AccessCard"))
 
     def test_use_keycard_with_fragment(self):
         self.game.player.current_room = self.game.exit_room
@@ -651,6 +670,7 @@ class TestGameItemUsage(unittest.TestCase):
         result = self.game.process("use AccessCard")
         self.assertTrue(self.game.flags["exit_card_used"])
         self.assertIn("CLICK", result)
+        self.assertFalse(self.game.player.has_item("AccessCard"))
 
     def test_use_keycard_already_used(self):
         self.game.player.current_room = self.game.exit_room
@@ -666,6 +686,8 @@ class TestGameItemUsage(unittest.TestCase):
         result = self.game.process("use Wire")
         self.assertTrue(self.game.flags["exit_power_cut"])
         self.assertIn("CRACK", result)
+        self.assertFalse(self.game.player.has_item("Wire"))
+        self.assertFalse(self.game.player.has_item("Battery"))
 
     def test_use_wire_before_card(self):
         self.game.player.current_room = self.game.exit_room
@@ -673,6 +695,8 @@ class TestGameItemUsage(unittest.TestCase):
         result = self.game.process("use Wire")
         self.assertFalse(self.game.flags["exit_power_cut"])
         self.assertIn("SEQUENCE ERROR", result)
+        self.assertTrue(self.game.player.has_item("Wire"))
+        self.assertTrue(self.game.player.has_item("Battery"))
 
     def test_use_datachip_lab_unlocked(self):
         self.game.player.current_room = self.game.lab
@@ -681,6 +705,7 @@ class TestGameItemUsage(unittest.TestCase):
         result = self.game.process("use DataChip")
         self.assertTrue(self.game.flags["found_truth"])
         self.assertIn("ECHO", result)
+        self.assertFalse(self.game.player.has_item("DataChip"))
 
     def test_use_datachip_lab_locked(self):
         self.game.player.current_room = self.game.lab
@@ -688,17 +713,20 @@ class TestGameItemUsage(unittest.TestCase):
         result = self.game.process("use DataChip")
         self.assertFalse(self.game.flags["found_truth"])
         self.assertIn("offline", result.lower())
+        self.assertTrue(self.game.player.has_item("DataChip"))
 
     def test_use_datachip_wrong_room(self):
         self.game.player.current_room = self.game.hall
         self._give("DataChip")
         result = self.game.process("use DataChip")
         self.assertIn("terminal", result.lower())
+        self.assertTrue(self.game.player.has_item("DataChip"))
 
     def test_use_journal_page(self):
         self._give("JournalPage")
         result = self.game.process("use JournalPage")
         self.assertIn("7B3", result)
+        self.assertTrue(self.game.player.has_item("JournalPage"))
 
     def test_use_nonexistent_item(self):
         result = self.game.process("use Sword")
@@ -712,11 +740,15 @@ class TestGameItemUsage(unittest.TestCase):
         self._give("KeycardFragment", "AccessCard")
         result = self.game.process("use KeycardFragment")
         self.assertIn("restored", result.lower())
+        self.assertFalse(self.game.player.has_item("KeycardFragment"))
+        self.assertTrue(self.game.player.has_item("AccessCard"))
 
     def test_keycard_fragment_without_access_card(self):
         self._give("KeycardFragment")
         result = self.game.process("use KeycardFragment")
         self.assertIn("AccessCard", result)
+        self.assertTrue(self.game.player.has_item("KeycardFragment"))
+
 
 class TestGamePuzzles(unittest.TestCase):
 
@@ -804,6 +836,7 @@ class TestGamePuzzles(unittest.TestCase):
         self.game.process("solve center")
         self.assertIn("Puzzle Solver", self.game.achievements.unlocked)
 
+
 class TestGameNPCs(unittest.TestCase):
 
     def setUp(self):
@@ -822,7 +855,7 @@ class TestGameNPCs(unittest.TestCase):
 
     def test_guard_silent_path_sets_trusted(self):
         self.game.process("talk")
-        self.game.process("choose 4")
+        self.game.process("choose 4")  # ... (silent)
         self.assertTrue(self.game.flags["trusted_guard"])
 
     def test_guard_exit_hint_sets_trusted(self):
@@ -893,6 +926,7 @@ class TestGameNPCs(unittest.TestCase):
     def test_choose_without_number(self):
         result = self.game.process("choose")
         self.assertIn("which", result.lower())
+
 
 class TestGameEndings(unittest.TestCase):
 
