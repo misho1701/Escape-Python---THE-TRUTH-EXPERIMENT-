@@ -41,8 +41,6 @@ class Game:
 
     def create_world(self):
 
-        # ---------- ROOMS ----------
-
         self.cell = Room(
             "Cell",
             """
