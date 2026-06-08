@@ -4,43 +4,81 @@ class Endings:
         self.current = None
 
     def set(self, ending):
-
         self.current = ending
 
     def show(self):
 
         endings = {
 
-            "good":
-            """
-GOOD ENDING
+            "good": """
+╔══════════════════════════════════════╗
+║             GOOD ENDING              ║
+╚══════════════════════════════════════╝
 
-You escaped the facility.
+The door opens.
 
-The sun shines in your eyes as you leave
-the underground complex behind forever.
+Cold air rushes in — real air, moving air,
+air that hasn't been recycled a thousand times.
+
+You step out into darkness and then, slowly,
+a grey pre-dawn sky comes into focus above you.
+
+You don't know your name.
+You don't know who you were.
+
+But you're free.
+
+For now, that's enough.
 """,
 
-            "bad":
-            """
-BAD ENDING
+            "bad": """
+╔══════════════════════════════════════╗
+║              BAD ENDING              ║
+╚══════════════════════════════════════╝
 
-Security systems activate.
+The facility wins.
 
-The facility enters lockdown.
+You are returned to your cell.
+The sedative is stronger this time.
 
-You never escape.
+When you wake again, you won't remember
+the corridor, the servers, or the door
+that almost opened.
+
+You won't remember trying.
+
+The experiment continues.
 """,
 
-            "secret":
-            """
-SECRET ENDING
+            "secret": """
+╔══════════════════════════════════════╗
+║            SECRET ENDING             ║
+╚══════════════════════════════════════╝
 
-The terminal reveals the truth.
+The door opens.
 
-You were one of the scientists.
+You walk out into the cold morning air
+and stop.
 
-This facility exists because of you.
+You remember now.
+
+The blueprints you drew.
+The consent forms you signed — and then stopped signing.
+The moment you decided to go first,
+to prove it was safe.
+
+It wasn't safe.
+
+You built this place.
+You ran the experiment.
+You were the experiment.
+
+Project ECHO is over.
+
+Somewhere behind you, in the dark,
+Dr. Voss is still waiting.
+
+You turn around.
 """
         }
 
