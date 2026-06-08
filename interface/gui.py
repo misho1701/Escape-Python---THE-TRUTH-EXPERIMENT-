@@ -1,492 +1,630 @@
-import tkinter as tk
-from tkinter import font as tkfont
+import pygame
+import math
+import time
 from game import Game
 
-BG          = "#1a1a2e"
-BG_PANEL    = "#16213e"
-BG_INPUT    = "#0f3460"
-ACCENT      = "#e94560"
-TEXT_MAIN   = "#eaeaea"
-TEXT_DIM    = "#7a7a9a"
-TEXT_SYSTEM = "#f0a500"
-TEXT_GOOD   = "#4ecca3"
-TEXT_ROOM   = "#a8dadc"
+WIN_W, WIN_H    = 1280, 750
+MAP_W           = 480
+PANEL_W         = WIN_W - MAP_W
 
-ROOM_DEFAULT  = "#0f3460"
-ROOM_CURRENT  = "#e94560"
-ROOM_BORDER   = "#a8dadc"
-ROOM_TEXT     = "#eaeaea"
-ROOM_VISITED  = "#1a4a6b"
+FPS             = 60
 
-CONN_LINE   = "#a8dadc"
-CONN_LOCKED = "#e94560"
+C_BG            = (13,  17,  30)
+C_MAP_BG        = (10,  14,  25)
+C_PANEL_BG      = (16,  20,  35)
+C_BORDER        = (30,  40,  70)
 
-ROOM_W, ROOM_H = 110, 44
-ROOM_R          = 8
+C_ROOM_DEFAULT  = (20,  35,  65)
+C_ROOM_VISITED  = (25,  50,  85)
+C_ROOM_CURRENT  = (180, 30,  60)
+C_ROOM_BORDER   = (80, 130, 180)
+C_ROOM_CUR_BDR  = (230, 80, 110)
+C_ROOM_TEXT     = (210, 225, 245)
+C_ROOM_CUR_TEXT = (255, 255, 255)
+
+C_CONN          = (60,  100, 150)
+C_CONN_VERT     = (100, 70,  130)
+
+C_ACCENT        = (220, 50,  80)
+C_TEXT          = (210, 220, 240)
+C_TEXT_DIM      = (100, 115, 145)
+C_TEXT_SYSTEM   = (240, 165,  40)
+C_TEXT_GOOD     = (70,  200, 150)
+C_TEXT_ROOM     = (120, 190, 220)
+C_TEXT_BAD      = (220, 80,   80)
+C_TEXT_PROMPT   = (180, 60,   90)
+
+C_INPUT_BG      = (18,  25,  48)
+C_INPUT_BORDER  = (50,  80, 130)
+C_CURSOR        = (220, 50,  80)
+
+C_BADGE_ITEM    = (30,  90,  70)
+C_BADGE_PUZZLE  = (80,  60,  20)
+C_BADGE_NPC     = (60,  30,  90)
+C_BADGE_TEXT    = (200, 230, 215)
+
+C_PARTICLE      = (220, 100, 120)
+
+C_GLOW          = (200, 40,  70)
+
+ROOM_W, ROOM_H  = 108, 46
 
 ROOM_POS = {
-    "Cell":               (30,  200),
-    "Hall":               (185, 200),
-    "Ventilation Shaft":  (185, 100),
-    "Server Room":        (185, 300),
-    "Laboratory":         (340, 200),
-    "Exit":               (495, 200),
+    "Cell":               (18,  270),
+    "Hall":               (170, 270),
+    "Ventilation Shaft":  (170, 155),
+    "Server Room":        (170, 385),
+    "Laboratory":         (322, 270),
+    "Exit":               (322, 155),
 }
 
-ROOM_LABELS = {
-    "Cell":              "Cell",
-    "Hall":              "Hall",
-    "Ventilation Shaft": "Vent Shaft",
-    "Server Room":       "Server Room",
-    "Laboratory":        "Laboratory",
-    "Exit":              "Exit",
+ROOM_SHORT = {
+    "Cell":               "Cell",
+    "Hall":               "Hall",
+    "Ventilation Shaft":  "Vent Shaft",
+    "Server Room":        "Server Room",
+    "Laboratory":         "Laboratory",
+    "Exit":               "Exit",
 }
 
 CONNECTIONS = [
-    ("Cell",              "Hall",              False),
-    ("Hall",              "Ventilation Shaft", True),
-    ("Ventilation Shaft", "Server Room",       True),
-    ("Server Room",       "Laboratory",        False),
-    ("Hall",              "Laboratory",        False),
-    ("Laboratory",        "Exit",              False),
+    ("Cell",             "Hall",              False),
+    ("Hall",             "Ventilation Shaft", True),
+    ("Hall",             "Laboratory",        False),
+    ("Ventilation Shaft","Server Room",       True),
+    ("Server Room",      "Laboratory",        False),
+    ("Laboratory",       "Exit",              False),
 ]
 
-MAP_W = 640
-MAP_H = 420
+TAG_COLORS = {
+    "normal":  C_TEXT,
+    "dim":     C_TEXT_DIM,
+    "system":  C_TEXT_SYSTEM,
+    "good":    C_TEXT_GOOD,
+    "room":    C_TEXT_ROOM,
+    "accent":  C_ACCENT,
+    "bad":     C_TEXT_BAD,
+    "prompt":  C_TEXT_PROMPT,
+}
+
+MAX_OUTPUT_LINES = 300
+VISIBLE_LINES    = 24
+INPUT_MAX        = 80
+
 
 def room_center(name):
     x, y = ROOM_POS[name]
     return x + ROOM_W // 2, y + ROOM_H // 2
 
 
-def clamp_to_edge(x1, y1, x2, y2):
-    cx, cy = x1, y1
-    tx, ty = x2, y2
-    dx, dy = tx - cx, ty - cy
-    if abs(dx) == 0 and abs(dy) == 0:
-        return cx, cy
+def lerp_color(a, b, t):
+    return tuple(int(a[i] + (b[i] - a[i]) * t) for i in range(3))
 
-    # half-extents
-    hw, hh = ROOM_W / 2, ROOM_H / 2
 
-    scale_x = (hw / abs(dx)) if dx != 0 else float("inf")
-    scale_y = (hh / abs(dy)) if dy != 0 else float("inf")
-    t = min(scale_x, scale_y)
+def draw_rounded_rect(surf, color, rect, radius, border=0, border_color=None):
+    pygame.draw.rect(surf, color, rect, border_radius=radius)
+    if border and border_color:
+        pygame.draw.rect(surf, border_color, rect, border, border_radius=radius)
 
-    return cx + dx * t, cy + dy * t
 
-class EscapePythonGUI:
+def tag_for_line(text):
+    t = text.lower()
+    if text.startswith("> "):
+        return "prompt"
+    if any(w in t for w in ["achievement unlocked", "correct!", "unlocked!", "green ✓"]):
+        return "good"
+    if any(w in t for w in ["wrong", "you need", "can't go", "unknown command",
+                              "don't have", "not found", "rejected", "error"]):
+        return "bad"
+    if any(w in t for w in ["you move to", "you step", "you push"]):
+        return "room"
+    if any(w in t for w in ["saved", "loaded", "goodbye", "lockdown", "alarm", "security"]):
+        return "system"
+    if any(w in t for w in ["═", "╔", "╚", "║", "===", "---", "lock", "green", "red"]):
+        return "system"
+    if any(w in t for w in ["hint:", "tip:"]):
+        return "dim"
+    return "normal"
 
-    def __init__(self, root):
-        self.root = root
-        self.root.title("Escape Python — The Truth Experiment")
-        self.root.configure(bg=BG)
-        self.root.resizable(False, False)
 
-        self.game = Game()
+class Particle:
+    def __init__(self, x, y):
+        import random
+        self.x = float(x)
+        self.y = float(y)
+        self.vx = random.uniform(-2, 2)
+        self.vy = random.uniform(-3, -0.5)
+        self.life = 1.0
+        self.decay = random.uniform(0.025, 0.06)
+        self.size = random.randint(2, 5)
+
+    def update(self):
+        self.x += self.vx
+        self.y += self.vy
+        self.vy += 0.08
+        self.life -= self.decay
+        return self.life > 0
+
+    def draw(self, surf, offset_x):
+        alpha = int(self.life * 255)
+        col = (*C_PARTICLE, alpha)
+        s = pygame.Surface((self.size * 2, self.size * 2), pygame.SRCALPHA)
+        pygame.draw.circle(s, col, (self.size, self.size), self.size)
+        surf.blit(s, (int(self.x) + offset_x - self.size,
+                      int(self.y) - self.size))
+
+
+class EscapePygameGUI:
+
+    def __init__(self):
+        pygame.init()
+        self.screen = pygame.display.set_mode((WIN_W, WIN_H))
+        pygame.display.set_caption("Escape Python — The Truth Experiment")
+
+        self.clock  = pygame.time.Clock()
+        self.game   = Game()
         self.visited = {self.game.player.current_room.name}
 
-        self._build_fonts()
-        self._build_layout()
-        self._draw_map()
+        self._load_fonts()
+
+        self.output_lines: list[tuple[str, str]] = []
+        self.scroll_offset = 0   # lines scrolled from bottom
+
+        self.input_text   = ""
+        self.cursor_vis   = True
+        self.cursor_timer = 0.0
+        self.history      = []
+        self.history_pos  = -1
+
+        self.glow_t       = 0.0
+
+        self.particles: list[Particle] = []
+
+        self.map_surf   = pygame.Surface((MAP_W, WIN_H))
+        self.panel_surf = pygame.Surface((PANEL_W, WIN_H))
+
+        self.scrollbar_dragging = False
+
         self._welcome()
 
-    # --------------------------------------------------
-    # FONTS
-    # --------------------------------------------------
+    def _load_fonts(self):
+        try:
+            self.font_ui    = pygame.font.SysFont("Courier New", 14)
+            self.font_ui_b  = pygame.font.SysFont("Courier New", 14, bold=True)
+            self.font_small = pygame.font.SysFont("Courier New", 11)
+            self.font_map   = pygame.font.SysFont("Courier New", 11, bold=True)
+            self.font_title = pygame.font.SysFont("Courier New", 16, bold=True)
+            self.font_input = pygame.font.SysFont("Courier New", 15)
+            self.font_badge = pygame.font.SysFont("Courier New", 9,  bold=True)
+        except Exception:
+            mono = pygame.font.get_default_font()
+            self.font_ui    = pygame.font.Font(mono, 14)
+            self.font_ui_b  = pygame.font.Font(mono, 14)
+            self.font_small = pygame.font.Font(mono, 11)
+            self.font_map   = pygame.font.Font(mono, 11)
+            self.font_title = pygame.font.Font(mono, 16)
+            self.font_input = pygame.font.Font(mono, 15)
+            self.font_badge = pygame.font.Font(mono, 9)
 
-    def _build_fonts(self):
-        self.font_mono   = tkfont.Font(family="Courier New", size=11)
-        self.font_mono_b = tkfont.Font(family="Courier New", size=11, weight="bold")
-        self.font_small  = tkfont.Font(family="Courier New", size=9)
-        self.font_map    = tkfont.Font(family="Courier New", size=9, weight="bold")
-        self.font_title  = tkfont.Font(family="Courier New", size=13, weight="bold")
-        self.font_hint   = tkfont.Font(family="Courier New", size=9)
+    def _print(self, text, tag=None):
+        for line in text.split("\n"):
+            t = tag if tag else tag_for_line(line)
+            self.output_lines.append((line, t))
 
-    def _build_layout(self):
-        self.root.geometry("1100x680")
+        if len(self.output_lines) > MAX_OUTPUT_LINES:
+            self.output_lines = self.output_lines[-MAX_OUTPUT_LINES:]
 
-        left = tk.Frame(self.root, bg=BG_PANEL, width=MAP_W)
-        left.pack(side=tk.LEFT, fill=tk.Y, padx=(10, 5), pady=10)
-        left.pack_propagate(False)
-
-        map_title = tk.Label(
-            left, text="FACILITY MAP",
-            bg=BG_PANEL, fg=ACCENT,
-            font=self.font_title,
-            anchor="w", padx=12, pady=8
-        )
-        map_title.pack(fill=tk.X)
-
-        self.canvas = tk.Canvas(
-            left, width=MAP_W, height=MAP_H,
-            bg=BG_PANEL, highlightthickness=0
-        )
-        self.canvas.pack(padx=8, pady=(0, 8))
-
-        legend_frame = tk.Frame(left, bg=BG_PANEL)
-        legend_frame.pack(fill=tk.X, padx=12, pady=(0, 6))
-
-        for color, label in [
-            (ROOM_CURRENT, "Current room"),
-            (ROOM_VISITED, "Visited"),
-            (ROOM_DEFAULT, "Unvisited"),
-        ]:
-            row = tk.Frame(legend_frame, bg=BG_PANEL)
-            row.pack(side=tk.LEFT, padx=(0, 14))
-            tk.Canvas(row, width=12, height=12, bg=color,
-                      highlightthickness=1,
-                      highlightbackground=ROOM_BORDER).pack(side=tk.LEFT, padx=(0, 4))
-            tk.Label(row, text=label, fg=TEXT_DIM,
-                     bg=BG_PANEL, font=self.font_hint).pack(side=tk.LEFT)
-
-        inv_frame = tk.Frame(left, bg=BG_PANEL)
-        inv_frame.pack(fill=tk.X, padx=12, pady=(4, 0))
-
-        tk.Label(inv_frame, text="INVENTORY", fg=ACCENT,
-                 bg=BG_PANEL, font=self.font_hint).pack(anchor="w")
-
-        self.inv_label = tk.Label(
-            inv_frame, text="Empty",
-            fg=TEXT_DIM, bg=BG_PANEL,
-            font=self.font_hint, wraplength=580,
-            justify=tk.LEFT, anchor="w"
-        )
-        self.inv_label.pack(anchor="w", pady=(2, 0))
-
-        ach_frame = tk.Frame(left, bg=BG_PANEL)
-        ach_frame.pack(fill=tk.X, padx=12, pady=(8, 0))
-
-        tk.Label(ach_frame, text="ACHIEVEMENTS", fg=ACCENT,
-                 bg=BG_PANEL, font=self.font_hint).pack(anchor="w")
-
-        self.ach_label = tk.Label(
-            ach_frame, text="None yet",
-            fg=TEXT_DIM, bg=BG_PANEL,
-            font=self.font_hint, wraplength=580,
-            justify=tk.LEFT, anchor="w"
-        )
-        self.ach_label.pack(anchor="w", pady=(2, 0))
-
-        right = tk.Frame(self.root, bg=BG)
-        right.pack(side=tk.LEFT, fill=tk.BOTH, expand=True,
-                   padx=(5, 10), pady=10)
-
-        game_title = tk.Label(
-            right,
-            text="ESCAPE PYTHON  //  THE TRUTH EXPERIMENT",
-            bg=BG, fg=ACCENT, font=self.font_title,
-            anchor="w", pady=8
-        )
-        game_title.pack(fill=tk.X)
-
-        out_frame = tk.Frame(right, bg=BG)
-        out_frame.pack(fill=tk.BOTH, expand=True)
-
-        self.output = tk.Text(
-            out_frame,
-            bg=BG, fg=TEXT_MAIN,
-            font=self.font_mono,
-            wrap=tk.WORD,
-            state=tk.DISABLED,
-            relief=tk.FLAT,
-            padx=10, pady=8,
-            cursor="arrow",
-            selectbackground=BG_INPUT,
-            insertbackground=TEXT_MAIN,
-        )
-        self.output.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
-
-        scrollbar = tk.Scrollbar(out_frame, command=self.output.yview,
-                                 bg=BG_PANEL, troughcolor=BG,
-                                 activebackground=ACCENT)
-        scrollbar.pack(side=tk.RIGHT, fill=tk.Y)
-        self.output.configure(yscrollcommand=scrollbar.set)
-
-        # text tags
-        self.output.tag_configure("system",  foreground=TEXT_SYSTEM, font=self.font_mono_b)
-        self.output.tag_configure("good",    foreground=TEXT_GOOD,   font=self.font_mono_b)
-        self.output.tag_configure("room",    foreground=TEXT_ROOM,   font=self.font_mono_b)
-        self.output.tag_configure("dim",     foreground=TEXT_DIM)
-        self.output.tag_configure("accent",  foreground=ACCENT,      font=self.font_mono_b)
-        self.output.tag_configure("normal",  foreground=TEXT_MAIN)
-        self.output.tag_configure("divider", foreground=TEXT_DIM)
-
-        loc_frame = tk.Frame(right, bg=BG_PANEL, pady=4)
-        loc_frame.pack(fill=tk.X, pady=(6, 0))
-
-        tk.Label(loc_frame, text="LOCATION:", fg=TEXT_DIM,
-                 bg=BG_PANEL, font=self.font_small,
-                 padx=8).pack(side=tk.LEFT)
-
-        self.loc_label = tk.Label(
-            loc_frame,
-            text=self.game.player.current_room.name.upper(),
-            fg=ACCENT, bg=BG_PANEL,
-            font=self.font_mono_b
-        )
-        self.loc_label.pack(side=tk.LEFT)
-
-        tk.Label(loc_frame, text="  |  type 'help' for commands",
-                 fg=TEXT_DIM, bg=BG_PANEL,
-                 font=self.font_small).pack(side=tk.LEFT)
-
-        input_frame = tk.Frame(right, bg=BG_INPUT, pady=2)
-        input_frame.pack(fill=tk.X, pady=(2, 0))
-
-        tk.Label(input_frame, text=">",
-                 fg=ACCENT, bg=BG_INPUT,
-                 font=self.font_mono_b, padx=8).pack(side=tk.LEFT)
-
-        self.entry = tk.Entry(
-            input_frame,
-            bg=BG_INPUT, fg=TEXT_MAIN,
-            font=self.font_mono,
-            relief=tk.FLAT,
-            insertbackground=TEXT_MAIN,
-            selectbackground=ACCENT,
-        )
-        self.entry.pack(side=tk.LEFT, fill=tk.X, expand=True, ipady=6)
-        self.entry.bind("<Return>", self._on_enter)
-        self.entry.bind("<Up>",     self._history_up)
-        self.entry.bind("<Down>",   self._history_down)
-        self.entry.focus_set()
-
-        # command history
-        self.history     = []
-        self.history_pos = -1
-
-    def _draw_map(self):
-        self.canvas.delete("all")
-        current_name = self.game.player.current_room.name
-
-        for src, dst, vertical in CONNECTIONS:
-            sx, sy = room_center(src)
-            dx, dy = room_center(dst)
-
-            ex1, ey1 = clamp_to_edge(sx, sy, dx, dy)
-            ex2, ey2 = clamp_to_edge(dx, dy, sx, sy)
-
-            color = CONN_LOCKED if vertical else CONN_LINE
-            dash  = (4, 3) if vertical else ()
-
-            self.canvas.create_line(
-                ex1, ey1, ex2, ey2,
-                fill=color, width=1.5,
-                dash=dash
-            )
-
-        for name, (rx, ry) in ROOM_POS.items():
-
-            if name == current_name:
-                fill = ROOM_CURRENT
-            elif name in self.visited:
-                fill = ROOM_VISITED
-            else:
-                fill = ROOM_DEFAULT
-
-            if name == current_name:
-                self.canvas.create_rectangle(
-                    rx - 3, ry - 3,
-                    rx + ROOM_W + 3, ry + ROOM_H + 3,
-                    fill="", outline=ACCENT,
-                    width=1.5
-                )
-
-            self.canvas.create_rectangle(
-                rx, ry, rx + ROOM_W, ry + ROOM_H,
-                fill=fill, outline=ROOM_BORDER,
-                width=1
-            )
-
-            label = ROOM_LABELS[name]
-            cx = rx + ROOM_W // 2
-            cy = ry + ROOM_H // 2
-
-            text_color = ACCENT if name == current_name else ROOM_TEXT
-
-            self.canvas.create_text(
-                cx, cy,
-                text=label,
-                fill=text_color,
-                font=self.font_map,
-                anchor="center"
-            )
-
-            room_obj = self.game.rooms[name]
-            if room_obj.puzzle and not room_obj.puzzle.solved:
-                self.canvas.create_text(
-                    rx + ROOM_W - 6, ry + 6,
-                    text="?", fill=TEXT_SYSTEM,
-                    font=self.font_map, anchor="ne"
-                )
-            elif room_obj.puzzle and room_obj.puzzle.solved:
-                self.canvas.create_text(
-                    rx + ROOM_W - 6, ry + 6,
-                    text="✓", fill=TEXT_GOOD,
-                    font=self.font_map, anchor="ne"
-                )
-
-        dir_labels = [
-            ("Cell",             "Hall",              "E"),
-            ("Hall",             "Ventilation Shaft", "N"),
-            ("Ventilation Shaft","Server Room",       "↓"),
-            ("Server Room",      "Laboratory",        "E"),
-            ("Hall",             "Laboratory",        "E"),
-            ("Laboratory",       "Exit",              "E"),
-        ]
-        drawn = set()
-        for src, dst, label in dir_labels:
-            key = tuple(sorted([src, dst]))
-            if key in drawn:
-                continue
-            drawn.add(key)
-            sx, sy = room_center(src)
-            dx, dy = room_center(dst)
-            mx = (sx + dx) / 2
-            my = (sy + dy) / 2
-            self.canvas.create_text(
-                mx, my - 8,
-                text=label, fill=TEXT_DIM,
-                font=self.font_small
-            )
-
-    def _print(self, text, tag="normal"):
-        self.output.configure(state=tk.NORMAL)
-        self.output.insert(tk.END, text + "\n", tag)
-        self.output.configure(state=tk.DISABLED)
-        self.output.see(tk.END)
+        if self.scroll_offset > 0:
+            self.scroll_offset = 0
 
     def _divider(self):
-        self._print("─" * 44, "divider")
+        self._print("─" * 52, "dim")
 
     def _welcome(self):
-        self._print("ESCAPE PYTHON — THE TRUTH EXPERIMENT", "accent")
+        self._print("ESCAPE PYTHON  //  THE TRUTH EXPERIMENT", "accent")
         self._divider()
         self._print("")
         self._print("You slowly regain consciousness.", "dim")
         self._print("Your head hurts.", "dim")
         self._print("You don't remember who you are.", "dim")
-        self._print("You don't remember how you got here.", "dim")
         self._print("")
-        self._print(self.game.player.current_room.description.strip(), "room")
+        desc = self.game.player.current_room.description.strip()
+        for line in desc.split("\n"):
+            self._print(line, "room")
         self._print("")
         self._print("Type 'help' to see all commands.", "dim")
         self._divider()
 
-    def _tag_for(self, text):
-        t = text.lower()
-        if any(w in t for w in ["achievement unlocked", "correct!", "unlocked"]):
-            return "good"
-        if any(w in t for w in ["wrong", "you need", "can't", "no puzzle", "unknown"]):
-            return "accent"
-        if any(w in t for w in ["you move to", "location:", "exit"]):
-            return "room"
-        if any(w in t for w in ["saved", "loaded", "goodbye"]):
-            return "system"
-        return "normal"
+    def _submit(self):
+        cmd = self.input_text.strip()
+        self.input_text = ""
+        self.history_pos = -1
 
-    def _update_sidebar(self):
-        inv = self.game.player.inventory
-        if inv:
-            self.inv_label.configure(
-                text="  ".join(i.name for i in inv),
-                fg=TEXT_MAIN
-            )
-        else:
-            self.inv_label.configure(text="Empty", fg=TEXT_DIM)
-
-        ach = self.game.achievements.unlocked
-        if ach:
-            self.ach_label.configure(
-                text="  ".join(ach),
-                fg=TEXT_GOOD
-            )
-        else:
-            self.ach_label.configure(text="None yet", fg=TEXT_DIM)
-
-        self.loc_label.configure(
-            text=self.game.player.current_room.name.upper()
-        )
-
-    def _on_enter(self, event=None):
-        cmd = self.entry.get().strip()
         if not cmd:
             return
 
-        self.entry.delete(0, tk.END)
-
         if not self.history or self.history[-1] != cmd:
             self.history.append(cmd)
-        self.history_pos = -1
 
-        self._print(f"> {cmd}", "dim")
+        self._print(f"> {cmd}", "prompt")
 
         result = self.game.process(cmd)
-
         if result:
-            for line in result.split("\n"):
-                tag = self._tag_for(line)
-                self._print(line, tag)
-
+            self._print(result)
         self._print("")
 
-        self.visited.add(self.game.player.current_room.name)
+        if cmd.lower().startswith("go "):
+            cx, cy = room_center(self.game.player.current_room.name)
+            for _ in range(18):
+                self.particles.append(Particle(cx, cy))
 
-        self._draw_map()
-        self._update_sidebar()
+        self.visited.add(self.game.player.current_room.name)
 
         self.game.check_endings()
 
         if not self.game.running:
-            self._show_ending()
+            self._print("═" * 52, "accent")
+            ending = self.game.endings.show()
+            tag = ("good" if self.game.endings.current == "good" else
+                   "bad"  if self.game.endings.current == "bad"  else
+                   "system")
+            self._print(ending, tag)
+            self._divider()
 
-    def _history_up(self, event=None):
-        if not self.history:
-            return
-        if self.history_pos == -1:
-            self.history_pos = len(self.history) - 1
-        elif self.history_pos > 0:
-            self.history_pos -= 1
-        self.entry.delete(0, tk.END)
-        self.entry.insert(0, self.history[self.history_pos])
+    def _draw_map(self):
+        s = self.map_surf
+        s.fill(C_MAP_BG)
 
-    def _history_down(self, event=None):
-        if self.history_pos == -1:
+        current_name = self.game.player.current_room.name
+
+        title = self.font_title.render("FACILITY MAP", True, C_ACCENT)
+        s.blit(title, (14, 14))
+
+        pygame.draw.line(s, C_BORDER, (0, 42), (MAP_W, 42), 1)
+
+        for src, dst, vertical in CONNECTIONS:
+            sx, sy = room_center(src)
+            dx, dy = room_center(dst)
+
+            col  = C_CONN_VERT if vertical else C_CONN
+            dash = 6 if vertical else 0
+
+            if dash:
+                self._draw_dashed_line(s, col, sx, sy, dx, dy, dash)
+            else:
+                pygame.draw.line(s, col, (sx, sy), (dx, dy), 1)
+
+            mx, my = (sx + dx) // 2, (sy + dy) // 2
+            self._draw_arrow(s, col, sx, sy, dx, dy)
+
+        for name, (rx, ry) in ROOM_POS.items():
+            self._draw_room(s, name, rx, ry, current_name)
+
+        legend_y = WIN_H - 175
+        pygame.draw.line(s, C_BORDER, (0, legend_y - 8), (MAP_W, legend_y - 8), 1)
+        self._legend(s, legend_y)
+
+        inv_y = legend_y + 30
+        pygame.draw.line(s, C_BORDER, (0, inv_y - 6), (MAP_W, inv_y - 6), 1)
+        self._draw_inv_ach(s, inv_y)
+
+    def _draw_room(self, s, name, rx, ry, current_name):
+        is_current = (name == current_name)
+        is_visited = (name in self.visited)
+
+        fill   = C_ROOM_CURRENT  if is_current else \
+                 C_ROOM_VISITED   if is_visited  else \
+                 C_ROOM_DEFAULT
+        border = C_ROOM_CUR_BDR  if is_current else C_ROOM_BORDER
+        text_c = C_ROOM_CUR_TEXT if is_current else C_ROOM_TEXT
+
+        rect = pygame.Rect(rx, ry, ROOM_W, ROOM_H)
+
+        if is_current:
+            glow_alpha = int(80 + 60 * math.sin(self.glow_t * 3))
+            glow_size  = 8
+            glow_surf  = pygame.Surface(
+                (ROOM_W + glow_size * 2, ROOM_H + glow_size * 2),
+                pygame.SRCALPHA
+            )
+            glow_col   = (*C_GLOW, glow_alpha)
+            pygame.draw.rect(
+                glow_surf, glow_col,
+                (0, 0, ROOM_W + glow_size * 2, ROOM_H + glow_size * 2),
+                border_radius=12
+            )
+            s.blit(glow_surf, (rx - glow_size, ry - glow_size))
+
+        draw_rounded_rect(s, fill, rect, 8)
+        draw_rounded_rect(s, (0, 0, 0, 0), rect, 8,
+                          border=2, border_color=border)
+
+        label = ROOM_SHORT[name]
+        surf  = self.font_map.render(label, True, text_c)
+        lx    = rx + (ROOM_W - surf.get_width()) // 2
+        ly    = ry + (ROOM_H - surf.get_height()) // 2 - 4
+        s.blit(surf, (lx, ly))
+
+        bx = rx + 4
+        by = ry + ROOM_H - 14
+
+        room_obj = self.game.rooms[name]
+
+        if room_obj.puzzle:
+            badge_text = "✓" if room_obj.puzzle.solved else "?"
+            badge_col  = C_TEXT_GOOD if room_obj.puzzle.solved else C_BADGE_PUZZLE
+            self._badge(s, badge_text, bx, by, badge_col)
+            bx += 20
+
+        if room_obj.items:
+            self._badge(s, f"×{len(room_obj.items)}", bx, by, C_BADGE_ITEM)
+            bx += 26
+
+        if name in ("Hall", "Server Room"):
+            self._badge(s, "NPC", bx, by, C_BADGE_NPC)
+
+    def _badge(self, s, text, x, y, color):
+        surf = self.font_badge.render(text, True, C_BADGE_TEXT)
+        w    = surf.get_width() + 6
+        h    = surf.get_height() + 2
+        pygame.draw.rect(s, color, (x, y, w, h), border_radius=3)
+        s.blit(surf, (x + 3, y + 1))
+
+    def _draw_dashed_line(self, s, col, x1, y1, x2, y2, dash_len):
+        dx, dy = x2 - x1, y2 - y1
+        dist   = math.hypot(dx, dy)
+        if dist == 0:
             return
-        if self.history_pos < len(self.history) - 1:
-            self.history_pos += 1
-            self.entry.delete(0, tk.END)
-            self.entry.insert(0, self.history[self.history_pos])
+        steps  = int(dist / dash_len)
+        for i in range(steps):
+            if i % 2 == 0:
+                t0 = i / steps
+                t1 = (i + 1) / steps
+                pygame.draw.line(
+                    s, col,
+                    (int(x1 + dx * t0), int(y1 + dy * t0)),
+                    (int(x1 + dx * t1), int(y1 + dy * t1)),
+                    1
+                )
+
+    def _draw_arrow(self, s, col, x1, y1, x2, y2):
+        dx, dy = x2 - x1, y2 - y1
+        dist   = math.hypot(dx, dy)
+        if dist == 0:
+            return
+        ux, uy = dx / dist, dy / dist
+        # midpoint
+        mx = (x1 + x2) / 2
+        my = (y1 + y2) / 2
+        size = 5
+        tip  = (int(mx + ux * size), int(my + uy * size))
+        l    = (int(mx - ux * size - uy * size), int(my - uy * size + ux * size))
+        r    = (int(mx - ux * size + uy * size), int(my - uy * size - ux * size))
+        pygame.draw.polygon(s, col, [tip, l, r])
+
+    def _legend(self, s, y):
+        items = [
+            (C_ROOM_CURRENT, "Current"),
+            (C_ROOM_VISITED, "Visited"),
+            (C_ROOM_DEFAULT, "Unseen"),
+        ]
+        x = 14
+        for col, label in items:
+            pygame.draw.rect(s, col, (x, y + 2, 10, 10), border_radius=2)
+            pygame.draw.rect(s, C_ROOM_BORDER, (x, y + 2, 10, 10), 1, border_radius=2)
+            t = self.font_small.render(label, True, C_TEXT_DIM)
+            s.blit(t, (x + 14, y))
+            x += 14 + t.get_width() + 14
+
+    def _draw_inv_ach(self, s, y):
+        pad = 14
+
+        inv_label = self.font_small.render("INVENTORY", True, C_ACCENT)
+        s.blit(inv_label, (pad, y))
+
+        inv = self.game.player.inventory
+        if inv:
+            inv_text = "  ".join(i.name for i in inv)
+            col = C_TEXT
         else:
-            self.history_pos = -1
-            self.entry.delete(0, tk.END)
+            inv_text = "Empty"
+            col = C_TEXT_DIM
 
-    def _show_ending(self):
-        self._divider()
-        self._print("═" * 44, "accent")
-        self._print("         ENDING REACHED", "accent")
-        self._print("═" * 44, "accent")
-        self._print("")
+        max_w = MAP_W - pad * 2
+        words = inv_text.split("  ")
+        line = ""
+        row_y = y + 16
+        for word in words:
+            test = (line + "  " + word).strip()
+            if self.font_ui.size(test)[0] > max_w and line:
+                s.blit(self.font_ui.render(line, True, col), (pad, row_y))
+                row_y += 17
+                line = word
+            else:
+                line = test
+        if line:
+            s.blit(self.font_ui.render(line, True, col), (pad, row_y))
+        row_y += 22
 
-        ending_text = self.game.endings.show()
-        for line in ending_text.split("\n"):
-            tag = "good" if self.game.endings.current == "good" else \
-                  "accent" if self.game.endings.current == "bad" else \
-                  "system"
-            self._print(line, tag)
+        pygame.draw.line(s, C_BORDER, (pad, row_y), (MAP_W - pad, row_y), 1)
+        row_y += 8
 
-        self._print("")
-        self._divider()
+        ach_label = self.font_small.render("ACHIEVEMENTS", True, C_ACCENT)
+        s.blit(ach_label, (pad, row_y))
+        row_y += 16
 
-        self.entry.configure(state=tk.DISABLED)
-        self.loc_label.configure(text="GAME OVER", fg=TEXT_DIM)
+        ach = sorted(self.game.achievements.unlocked)
+        if ach:
+            for achievement in ach:
+                dot = self.font_ui.render("✓ " + achievement, True, C_TEXT_GOOD)
+                s.blit(dot, (pad, row_y))
+                row_y += 17
+        else:
+            none_surf = self.font_ui.render("None yet", True, C_TEXT_DIM)
+            s.blit(none_surf, (pad, row_y))
 
+    def _draw_panel(self):
+        s = self.panel_surf
+        s.fill(C_PANEL_BG)
+
+        title_surf = self.font_title.render(
+            "ESCAPE PYTHON  //  THE TRUTH EXPERIMENT", True, C_ACCENT
+        )
+        s.blit(title_surf, (16, 12))
+        pygame.draw.line(s, C_BORDER, (0, 38), (PANEL_W, 38), 1)
+
+        out_h      = WIN_H - 38 - 36 - 44  # minus title, location bar, input
+        line_h     = 19
+        visible    = out_h // line_h
+        total      = len(self.output_lines)
+        start      = max(0, total - visible - self.scroll_offset)
+        end        = min(total, start + visible)
+        lines_show = self.output_lines[start:end]
+
+        oy = 44
+        for text, tag in lines_show:
+            col  = TAG_COLORS.get(tag, C_TEXT)
+            font = self.font_ui_b if tag in ("accent", "system", "good") else self.font_ui
+            if text:
+                surf = font.render(text[:90], True, col)
+                s.blit(surf, (16, oy))
+            oy += line_h
+
+        sb_x = PANEL_W - 10
+        sb_h = WIN_H - 38 - 36 - 44
+        pygame.draw.rect(s, C_BORDER, (sb_x, 44, 6, sb_h), border_radius=3)
+        if total > visible:
+            thumb_h  = max(20, int(sb_h * visible / total))
+            max_off  = total - visible
+            ratio    = 1.0 - (self.scroll_offset / max_off) if max_off > 0 else 1.0
+            thumb_y  = 44 + int((sb_h - thumb_h) * ratio)
+            pygame.draw.rect(s, C_TEXT_DIM, (sb_x, thumb_y, 6, thumb_h), border_radius=3)
+
+        loc_y = WIN_H - 44 - 36
+        pygame.draw.line(s, C_BORDER, (0, loc_y), (PANEL_W, loc_y), 1)
+        loc_name = self.game.player.current_room.name.upper()
+        loc_surf = self.font_ui_b.render(f"  LOCATION: {loc_name}", True, C_ACCENT)
+        hint     = self.font_small.render(
+            "  scroll: mouse wheel  |  history: ↑↓", True, C_TEXT_DIM
+        )
+        s.blit(loc_surf, (0, loc_y + 8))
+        s.blit(hint, (loc_surf.get_width() + 10, loc_y + 10))
+
+        # Input bar
+        inp_y = WIN_H - 44
+        pygame.draw.line(s, C_BORDER, (0, inp_y), (PANEL_W, inp_y), 1)
+        pygame.draw.rect(s, C_INPUT_BG, (0, inp_y, PANEL_W, 44))
+        pygame.draw.rect(s, C_INPUT_BORDER, (0, inp_y, PANEL_W, 44), 1)
+
+        prompt = self.font_input.render(">", True, C_ACCENT)
+        s.blit(prompt, (12, inp_y + 12))
+
+        inp_display = self.input_text
+        inp_surf    = self.font_input.render(inp_display, True, C_TEXT)
+        s.blit(inp_surf, (32, inp_y + 12))
+
+        if self.cursor_vis:
+            cx = 32 + self.font_input.size(inp_display)[0]
+            pygame.draw.rect(s, C_CURSOR, (cx, inp_y + 13, 2, 18))
+
+    def _update_particles(self):
+        self.particles = [p for p in self.particles if p.update()]
+
+    def _draw_particles(self):
+        for p in self.particles:
+            p.draw(self.screen, MAP_W)
+
+    def run(self):
+        running = True
+
+        while running:
+            dt = self.clock.tick(FPS) / 1000.0
+            self.glow_t      += dt
+            self.cursor_timer += dt
+            if self.cursor_timer > 0.53:
+                self.cursor_vis   = not self.cursor_vis
+                self.cursor_timer = 0.0
+
+            for event in pygame.event.get():
+
+                if event.type == pygame.QUIT:
+                    running = False
+
+                elif event.type == pygame.KEYDOWN:
+                    self._handle_key(event)
+
+                elif event.type == pygame.MOUSEWHEEL:
+                    total   = len(self.output_lines)
+                    visible = (WIN_H - 38 - 36 - 44) // 19
+                    max_off = max(0, total - visible)
+                    self.scroll_offset = max(
+                        0, min(max_off, self.scroll_offset - event.y)
+                    )
+
+                elif event.type == pygame.TEXTINPUT:
+                    if len(self.input_text) < INPUT_MAX:
+                        self.input_text += event.text
+
+            self._update_particles()
+
+            self.screen.fill(C_BG)
+
+            self._draw_map()
+            self._draw_panel()
+
+            self.screen.blit(self.map_surf,   (0, 0))
+            self.screen.blit(self.panel_surf, (MAP_W, 0))
+
+            pygame.draw.line(
+                self.screen, C_BORDER,
+                (MAP_W, 0), (MAP_W, WIN_H), 1
+            )
+
+            self._draw_particles()
+
+            pygame.display.flip()
+
+        pygame.quit()
+
+    def _handle_key(self, event):
+        if event.key == pygame.K_RETURN:
+            self._submit()
+
+        elif event.key == pygame.K_BACKSPACE:
+            self.input_text = self.input_text[:-1]
+
+        elif event.key == pygame.K_UP:
+            if self.history:
+                if self.history_pos == -1:
+                    self.history_pos = len(self.history) - 1
+                elif self.history_pos > 0:
+                    self.history_pos -= 1
+                self.input_text = self.history[self.history_pos]
+
+        elif event.key == pygame.K_DOWN:
+            if self.history_pos != -1:
+                if self.history_pos < len(self.history) - 1:
+                    self.history_pos += 1
+                    self.input_text = self.history[self.history_pos]
+                else:
+                    self.history_pos = -1
+                    self.input_text  = ""
+
+        elif event.key == pygame.K_ESCAPE:
+            self.input_text = ""
+
+        elif event.key == pygame.K_PAGEUP:
+            total   = len(self.output_lines)
+            visible = (WIN_H - 38 - 36 - 44) // 19
+            max_off = max(0, total - visible)
+            self.scroll_offset = min(max_off, self.scroll_offset + visible // 2)
+
+        elif event.key == pygame.K_PAGEDOWN:
+            self.scroll_offset = max(0, self.scroll_offset - VISIBLE_LINES // 2)
 
 def main():
-    root = tk.Tk()
-    app = EscapePythonGUI(root)
-    root.mainloop()
+    gui = EscapePygameGUI()
+    gui.run()
 
 
 if __name__ == "__main__":
