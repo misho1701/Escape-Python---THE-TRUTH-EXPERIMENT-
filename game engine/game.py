@@ -41,6 +41,8 @@ class Game:
 
     def create_world(self):
 
+        # ---------- ROOMS ----------
+
         self.cell = Room(
             "Cell",
             """
@@ -722,8 +724,6 @@ The cursor blinks. One chance. Choose your words carefully.
             "Exit": self.exit_room,
         }
 
-        # ---------- PLAYER ----------
-
         self.player = Player(self.cell)
 
     def help(self):
@@ -1020,6 +1020,7 @@ System:
 
         return f"Unknown command: '{action}'. Type 'help' for a list of commands."
 
+
     def _guard_choose(self, choice):
 
         result = self.guard.choose(choice)
@@ -1057,6 +1058,7 @@ System:
 
         return result
 
+
     def _trigger_bad_ending(self):
 
         self.endings.set("bad")
@@ -1090,6 +1092,14 @@ System:
                 "The facility has won."
             )
 
+
+    def _consume(self, item_name):
+        """Remove an item from the player's inventory by name."""
+        self.player.inventory = [
+            i for i in self.player.inventory
+            if i.name.lower() != item_name.lower()
+        ]
+
     def use_item(self, item_name):
 
         item_name_lower = item_name.lower()
@@ -1118,6 +1128,7 @@ System:
                 if self.flags["cell_unlocked"]:
                     return "The cell door is already open."
                 self.flags["cell_unlocked"] = True
+                self._consume("Key")
                 return (
                     "You slide the rusty key into the lock.\n"
                     "It resists for a moment — then turns with a heavy CLUNK.\n\n"
@@ -1165,6 +1176,7 @@ System:
 
         if item.name == "VentTool":
             if room == self.hall:
+                self._consume("VentTool")
                 return (
                     "You use the VentTool to unscrew the ventilation grate bolts.\n"
                     "The grate swings open with a metallic groan.\n"
@@ -1174,6 +1186,7 @@ System:
 
         if item.name == "KeycardFragment":
             if self.player.has_item("AccessCard"):
+                self._consume("KeycardFragment")
                 return (
                     "You press the Fragment against the AccessCard's broken edge.\n"
                     "The chips align. The card crackles and glows faintly.\n"
@@ -1192,6 +1205,7 @@ System:
                 if self.flags.get("lab_unlocked"):
                     self.flags["found_truth"] = True
                     self.achievements.unlock("Truth Seeker")
+                    self._consume("DataChip")
                     return (
                         "You insert the DataChip into the lab terminal.\n"
                         "Classified files begin to load...\n\n"
@@ -1228,6 +1242,7 @@ System:
             )
 
         self.flags["exit_card_used"] = True
+        self._consume("AccessCard")
         return (
             "You press the restored card against the reader.\n"
             "A long pause... then a solid CLICK.\n\n"
@@ -1249,6 +1264,8 @@ System:
             return "Lock 2 is already disengaged. The conduit is dead."
 
         self.flags["exit_power_cut"] = True
+        self._consume("Wire")
+        self._consume("Battery")
         return (
             "You locate the power conduit panel beside the door frame.\n"
             "With careful hands, you bridge the Wire between the Battery\n"
@@ -1258,6 +1275,7 @@ System:
             "The final panel flickers on — a logic gate challenge awaits.\n"
             "Type 'puzzle' to face Lock 3."
         )
+
 
     def inspect_item(self, item_name):
 
@@ -1295,6 +1313,7 @@ System:
                 self.endings.set("good")
 
             self.running = False
+
 
     def apply_load(self, data):
 
