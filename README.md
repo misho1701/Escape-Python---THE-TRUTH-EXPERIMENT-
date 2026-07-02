@@ -12,7 +12,7 @@ A text adventure game built in Python. You wake up in a prison cell with no memo
 - 2 NPCs with deep branching dialogue trees
 - 3 endings — good, bad, and secret
 - 5 unlockable achievements
-- Full GUI via Tkinter with a live map, inventory panel, and scrollable output
+- Full GUI via pygame with a live map, inventory panel, and scrollable output
 - Save/load system via JSON
 
 ---
