@@ -30,10 +30,8 @@ class Game:
             "guard_alarmed": False,
             "scientist_met": False,
             "scientist_trusted": False,
-            # Exit door locks
             "exit_card_used": False,
             "exit_power_cut": False,
-            # Cell door
             "cell_unlocked": False,
         }
 
@@ -1092,14 +1090,12 @@ System:
 
 
     def _consume(self, item_name):
-        """Remove an item from the player's inventory by name."""
         self.player.inventory = [
             i for i in self.player.inventory
             if i.name.lower() != item_name.lower()
         ]
 
     def use_item(self, item_name):
-
         item_name_lower = item_name.lower()
         room = self.player.current_room
 
