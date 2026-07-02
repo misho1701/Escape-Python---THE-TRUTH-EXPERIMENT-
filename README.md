@@ -23,7 +23,7 @@ A text adventure game built in Python. You wake up in a prison cell with no memo
 escape_python/
 │
 ├── main.py          — Terminal entry point. Menu, game loop, ending display.
-├── gui.py           — Tkinter GUI. Full game window with live map and panels.
+├── gui.py           — pygame GUI. Full game window with live map and panels.
 ├── game.py          — Core engine. World creation, command processing, story logic.
 │
 ├── room.py          — Room class. Holds description, connections, items, puzzle.
