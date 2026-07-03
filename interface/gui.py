@@ -1,61 +1,74 @@
 import pygame
+import pygame.gfxdraw
 import math
-import time
+import random
 from game import Game
 
-WIN_W, WIN_H    = 1280, 750
-MAP_W           = 480
-PANEL_W         = WIN_W - MAP_W
+WIN_W,  WIN_H  = 1536, 864
+MAP_W          = 620
+PANEL_W        = WIN_W - MAP_W
 
-FPS             = 60
+SCALE          = 2
+RWIN_W         = WIN_W  * SCALE
+RWIN_H         = WIN_H  * SCALE
+RMAP_W         = MAP_W  * SCALE
+RPANEL_W       = PANEL_W * SCALE
 
-C_BG            = (13,  17,  30)
-C_MAP_BG        = (10,  14,  25)
-C_PANEL_BG      = (16,  20,  35)
-C_BORDER        = (30,  40,  70)
+FPS            = 60
 
-C_ROOM_DEFAULT  = (20,  35,  65)
-C_ROOM_VISITED  = (25,  50,  85)
-C_ROOM_CURRENT  = (180, 30,  60)
-C_ROOM_BORDER   = (80, 130, 180)
-C_ROOM_CUR_BDR  = (230, 80, 110)
-C_ROOM_TEXT     = (210, 225, 245)
+C_BG            = (22,  28,  48)
+C_MAP_BG        = (18,  24,  42)
+C_PANEL_BG      = (24,  30,  52)
+C_BORDER        = (55,  75, 120)
+C_BORDER_BRIGHT = (90, 130, 190)
+
+C_ROOM_DEFAULT  = (35,  55,  95)
+C_ROOM_VISITED  = (45,  80, 130)
+C_ROOM_CURRENT  = (195, 45,  75)
+C_ROOM_BORDER   = (110, 165, 220)
+C_ROOM_CUR_BDR  = (255, 120, 145)
+C_ROOM_TEXT     = (220, 235, 255)
 C_ROOM_CUR_TEXT = (255, 255, 255)
+C_ROOM_UNVIS    = (170, 190, 225)
 
-C_CONN          = (60,  100, 150)
-C_CONN_VERT     = (100, 70,  130)
+C_CONN          = (90,  145, 210)
+C_CONN_VERT     = (150, 105, 190)
+C_CONN_GLOW     = (110, 175, 255)
 
-C_ACCENT        = (220, 50,  80)
-C_TEXT          = (210, 220, 240)
-C_TEXT_DIM      = (100, 115, 145)
-C_TEXT_SYSTEM   = (240, 165,  40)
-C_TEXT_GOOD     = (70,  200, 150)
-C_TEXT_ROOM     = (120, 190, 220)
-C_TEXT_BAD      = (220, 80,   80)
-C_TEXT_PROMPT   = (180, 60,   90)
+C_ACCENT        = (255,  80, 110)
+C_ACCENT_DIM    = (180,  55,  80)
+C_TEXT          = (225, 235, 255)
+C_TEXT_DIM      = (185, 200, 235)
+C_TEXT_SYSTEM   = (255, 200,  80)
+C_TEXT_GOOD     = (100, 235, 180)
+C_TEXT_ROOM     = (160, 220, 255)
+C_TEXT_BAD      = (255, 120, 120)
+C_TEXT_PROMPT   = (235, 110, 140)
 
-C_INPUT_BG      = (18,  25,  48)
-C_INPUT_BORDER  = (50,  80, 130)
-C_CURSOR        = (220, 50,  80)
+C_INPUT_BG      = (28,  36,  65)
+C_INPUT_BORDER  = (90, 130, 195)
+C_CURSOR        = (255,  80, 110)
 
-C_BADGE_ITEM    = (30,  90,  70)
-C_BADGE_PUZZLE  = (80,  60,  20)
-C_BADGE_NPC     = (60,  30,  90)
-C_BADGE_TEXT    = (200, 230, 215)
+C_BADGE_ITEM    = (40,  130, 100)
+C_BADGE_PUZZLE  = (130, 100,  35)
+C_BADGE_PUZZLE_DONE = (40, 140, 80)
+C_BADGE_NPC     = (100,  50, 150)
+C_BADGE_TEXT    = (230, 250, 235)
 
-C_PARTICLE      = (220, 100, 120)
+C_PARTICLE      = (255, 130, 150)
+C_PARTICLE2     = (150, 200, 255)
+C_GLOW          = (230,  55,  90)
 
-C_GLOW          = (200, 40,  70)
-
-ROOM_W, ROOM_H  = 108, 46
+ROOM_W, ROOM_H = 128, 52
+ROOM_R         = 12
 
 ROOM_POS = {
-    "Cell":               (18,  270),
-    "Hall":               (170, 270),
-    "Ventilation Shaft":  (170, 155),
-    "Server Room":        (170, 385),
-    "Laboratory":         (322, 270),
-    "Exit":               (322, 155),
+    "Cell":               ( 20, 295),
+    "Hall":               (194, 295),
+    "Ventilation Shaft":  (194, 165),
+    "Server Room":        (194, 425),
+    "Laboratory":         (368, 295),
+    "Exit":               (368, 165),
 }
 
 ROOM_SHORT = {
@@ -68,12 +81,12 @@ ROOM_SHORT = {
 }
 
 CONNECTIONS = [
-    ("Cell",             "Hall",              False),
-    ("Hall",             "Ventilation Shaft", True),
-    ("Hall",             "Laboratory",        False),
-    ("Ventilation Shaft","Server Room",       True),
-    ("Server Room",      "Laboratory",        False),
-    ("Laboratory",       "Exit",              False),
+    ("Cell",              "Hall",              False),
+    ("Hall",              "Ventilation Shaft", True),
+    ("Hall",              "Laboratory",        False),
+    ("Ventilation Shaft", "Server Room",       True),
+    ("Server Room",       "Laboratory",        False),
+    ("Laboratory",        "Exit",              False),
 ]
 
 TAG_COLORS = {
@@ -87,9 +100,14 @@ TAG_COLORS = {
     "prompt":  C_TEXT_PROMPT,
 }
 
-MAX_OUTPUT_LINES = 300
-VISIBLE_LINES    = 24
+MAX_OUTPUT_LINES = 400
 INPUT_MAX        = 80
+
+
+def s(v):
+    if isinstance(v, (int, float)):
+        return int(v * SCALE)
+    return tuple(int(x * SCALE) for x in v)
 
 
 def room_center(name):
@@ -97,69 +115,88 @@ def room_center(name):
     return x + ROOM_W // 2, y + ROOM_H // 2
 
 
-def lerp_color(a, b, t):
-    return tuple(int(a[i] + (b[i] - a[i]) * t) for i in range(3))
-
-
-def draw_rounded_rect(surf, color, rect, radius, border=0, border_color=None):
-    pygame.draw.rect(surf, color, rect, border_radius=radius)
-    if border and border_color:
-        pygame.draw.rect(surf, border_color, rect, border, border_radius=radius)
-
-
 def tag_for_line(text):
     t = text.lower()
     if text.startswith("> "):
         return "prompt"
-    if any(w in t for w in ["achievement unlocked", "correct!", "unlocked!", "green ✓"]):
+    if any(w in t for w in ["achievement unlocked", "correct!", "green ✓"]):
         return "good"
     if any(w in t for w in ["wrong", "you need", "can't go", "unknown command",
-                              "don't have", "not found", "rejected", "error"]):
+                             "don't have", "not found", "rejected", "sequence error"]):
         return "bad"
     if any(w in t for w in ["you move to", "you step", "you push"]):
         return "room"
-    if any(w in t for w in ["saved", "loaded", "goodbye", "lockdown", "alarm", "security"]):
-        return "system"
-    if any(w in t for w in ["═", "╔", "╚", "║", "===", "---", "lock", "green", "red"]):
+    if any(w in t for w in ["saved", "loaded", "goodbye", "lockdown", "alarm",
+                             "security", "═", "╔", "╚", "║"]):
         return "system"
     if any(w in t for w in ["hint:", "tip:"]):
         return "dim"
     return "normal"
 
 
+def aa_line(surf, col, x1, y1, x2, y2):
+    pygame.gfxdraw.line(surf, x1, y1, x2, y2, col)
+
+
+def aa_rounded_rect(surf, col, rect, radius, alpha=255):
+    w, h = rect[2], rect[3]
+    tmp = pygame.Surface((w, h), pygame.SRCALPHA)
+    pygame.draw.rect(tmp, (*col, alpha), (0, 0, w, h), border_radius=radius)
+    surf.blit(tmp, (rect[0], rect[1]))
+
+
+def aa_rounded_border(surf, col, rect, radius, width=2):
+    pygame.draw.rect(surf, col, rect, width, border_radius=radius)
+
+
+def glow_rect(surf, col, rect, radius, layers=4, max_alpha=60):
+    for i in range(layers, 0, -1):
+        expand = i * 4
+        alpha  = int(max_alpha * (1 - i / (layers + 1)))
+        glow_r = pygame.Rect(
+            rect.x - expand, rect.y - expand,
+            rect.w + expand * 2, rect.h + expand * 2
+        )
+        aa_rounded_rect(surf, col, glow_r, radius + expand, alpha)
+
+
 class Particle:
-    def __init__(self, x, y):
-        import random
-        self.x = float(x)
-        self.y = float(y)
-        self.vx = random.uniform(-2, 2)
-        self.vy = random.uniform(-3, -0.5)
+    def __init__(self, x, y, color=None):
+        self.x    = float(x)
+        self.y    = float(y)
+        self.vx   = random.uniform(-1.8, 1.8)
+        self.vy   = random.uniform(-2.8, -0.4)
         self.life = 1.0
-        self.decay = random.uniform(0.025, 0.06)
-        self.size = random.randint(2, 5)
+        self.decay = random.uniform(0.022, 0.055)
+        self.size  = random.randint(2, 5)
+        self.color = color or (random.choice([C_PARTICLE, C_PARTICLE2]))
 
     def update(self):
-        self.x += self.vx
-        self.y += self.vy
-        self.vy += 0.08
+        self.x  += self.vx
+        self.y  += self.vy
+        self.vy += 0.07
         self.life -= self.decay
         return self.life > 0
 
-    def draw(self, surf, offset_x):
-        alpha = int(self.life * 255)
-        col = (*C_PARTICLE, alpha)
-        s = pygame.Surface((self.size * 2, self.size * 2), pygame.SRCALPHA)
-        pygame.draw.circle(s, col, (self.size, self.size), self.size)
-        surf.blit(s, (int(self.x) + offset_x - self.size,
-                      int(self.y) - self.size))
+    def draw(self, surf):
+        alpha = int(self.life * 220)
+        r = max(1, int(self.size * self.life))
+        tmp = pygame.Surface((r * 2 + 2, r * 2 + 2), pygame.SRCALPHA)
+        pygame.gfxdraw.filled_circle(tmp, r + 1, r + 1, r, (*self.color, alpha))
+        pygame.gfxdraw.aacircle(tmp, r + 1, r + 1, r, (*self.color, alpha))
+        surf.blit(tmp, (int(self.x) - r - 1, int(self.y) - r - 1))
 
 
 class EscapePygameGUI:
 
     def __init__(self):
         pygame.init()
-        self.screen = pygame.display.set_mode((WIN_W, WIN_H))
+        self.screen  = pygame.display.set_mode((WIN_W, WIN_H))
         pygame.display.set_caption("Escape Python — The Truth Experiment")
+
+        self.render_surf = pygame.Surface((RWIN_W, RWIN_H), pygame.SRCALPHA)
+        self.map_surf    = pygame.Surface((RMAP_W, RWIN_H), pygame.SRCALPHA)
+        self.panel_surf  = pygame.Surface((RPANEL_W, RWIN_H), pygame.SRCALPHA)
 
         self.clock  = pygame.time.Clock()
         self.game   = Game()
@@ -168,7 +205,7 @@ class EscapePygameGUI:
         self._load_fonts()
 
         self.output_lines: list[tuple[str, str]] = []
-        self.scroll_offset = 0   # lines scrolled from bottom
+        self.scroll_offset = 0
 
         self.input_text   = ""
         self.cursor_vis   = True
@@ -176,49 +213,44 @@ class EscapePygameGUI:
         self.history      = []
         self.history_pos  = -1
 
-        self.glow_t       = 0.0
-
+        self.glow_t  = 0.0
+        self.conn_t  = 0.0
         self.particles: list[Particle] = []
-
-        self.map_surf   = pygame.Surface((MAP_W, WIN_H))
-        self.panel_surf = pygame.Surface((PANEL_W, WIN_H))
-
-        self.scrollbar_dragging = False
 
         self._welcome()
 
     def _load_fonts(self):
         try:
-            self.font_ui    = pygame.font.SysFont("Courier New", 14)
-            self.font_ui_b  = pygame.font.SysFont("Courier New", 14, bold=True)
-            self.font_small = pygame.font.SysFont("Courier New", 11)
-            self.font_map   = pygame.font.SysFont("Courier New", 11, bold=True)
-            self.font_title = pygame.font.SysFont("Courier New", 16, bold=True)
-            self.font_input = pygame.font.SysFont("Courier New", 15)
-            self.font_badge = pygame.font.SysFont("Courier New", 9,  bold=True)
+            self.font_ui    = pygame.font.SysFont("Courier New", 28)
+            self.font_ui_b  = pygame.font.SysFont("Courier New", 28, bold=True)
+            self.font_small = pygame.font.SysFont("Courier New", 22)
+            self.font_map   = pygame.font.SysFont("Courier New", 24, bold=True)
+            self.font_title = pygame.font.SysFont("Courier New", 32, bold=True)
+            self.font_input = pygame.font.SysFont("Courier New", 30)
+            self.font_badge = pygame.font.SysFont("Courier New", 18, bold=True)
+            self.font_loc   = pygame.font.SysFont("Courier New", 26, bold=True)
         except Exception:
             mono = pygame.font.get_default_font()
-            self.font_ui    = pygame.font.Font(mono, 14)
-            self.font_ui_b  = pygame.font.Font(mono, 14)
-            self.font_small = pygame.font.Font(mono, 11)
-            self.font_map   = pygame.font.Font(mono, 11)
-            self.font_title = pygame.font.Font(mono, 16)
-            self.font_input = pygame.font.Font(mono, 15)
-            self.font_badge = pygame.font.Font(mono, 9)
+            self.font_ui    = pygame.font.Font(mono, 28)
+            self.font_ui_b  = pygame.font.Font(mono, 28)
+            self.font_small = pygame.font.Font(mono, 22)
+            self.font_map   = pygame.font.Font(mono, 24)
+            self.font_title = pygame.font.Font(mono, 32)
+            self.font_input = pygame.font.Font(mono, 30)
+            self.font_badge = pygame.font.Font(mono, 18)
+            self.font_loc   = pygame.font.Font(mono, 26)
 
     def _print(self, text, tag=None):
         for line in text.split("\n"):
             t = tag if tag else tag_for_line(line)
             self.output_lines.append((line, t))
-
         if len(self.output_lines) > MAX_OUTPUT_LINES:
             self.output_lines = self.output_lines[-MAX_OUTPUT_LINES:]
-
         if self.scroll_offset > 0:
             self.scroll_offset = 0
 
     def _divider(self):
-        self._print("─" * 52, "dim")
+        self._print("─" * 54, "dim")
 
     def _welcome(self):
         self._print("ESCAPE PYTHON  //  THE TRUTH EXPERIMENT", "accent")
@@ -228,8 +260,7 @@ class EscapePygameGUI:
         self._print("Your head hurts.", "dim")
         self._print("You don't remember who you are.", "dim")
         self._print("")
-        desc = self.game.player.current_room.description.strip()
-        for line in desc.split("\n"):
+        for line in self.game.player.current_room.description.strip().split("\n"):
             self._print(line, "room")
         self._print("")
         self._print("Type 'help' to see all commands.", "dim")
@@ -237,17 +268,14 @@ class EscapePygameGUI:
 
     def _submit(self):
         cmd = self.input_text.strip()
-        self.input_text = ""
+        self.input_text  = ""
         self.history_pos = -1
-
         if not cmd:
             return
-
         if not self.history or self.history[-1] != cmd:
             self.history.append(cmd)
 
         self._print(f"> {cmd}", "prompt")
-
         result = self.game.process(cmd)
         if result:
             self._print(result)
@@ -255,333 +283,338 @@ class EscapePygameGUI:
 
         if cmd.lower().startswith("go "):
             cx, cy = room_center(self.game.player.current_room.name)
-            for _ in range(18):
-                self.particles.append(Particle(cx, cy))
+            for _ in range(22):
+                self.particles.append(
+                    Particle(cx * SCALE + RMAP_W,
+                             cy * SCALE,
+                             random.choice([C_PARTICLE, C_PARTICLE2, C_ACCENT]))
+                )
 
         self.visited.add(self.game.player.current_room.name)
-
         self.game.check_endings()
 
         if not self.game.running:
-            self._print("═" * 52, "accent")
-            ending = self.game.endings.show()
-            tag = ("good" if self.game.endings.current == "good" else
-                   "bad"  if self.game.endings.current == "bad"  else
+            tag = ("good"   if self.game.endings.current == "good"   else
+                   "bad"    if self.game.endings.current == "bad"    else
                    "system")
-            self._print(ending, tag)
+            self._print("═" * 54, "accent")
+            self._print(self.game.endings.show(), tag)
             self._divider()
 
     def _draw_map(self):
-        s = self.map_surf
-        s.fill(C_MAP_BG)
+        ms = self.map_surf
+        ms.fill(C_MAP_BG)
 
-        current_name = self.game.player.current_room.name
+        current = self.game.player.current_room.name
 
-        title = self.font_title.render("FACILITY MAP", True, C_ACCENT)
-        s.blit(title, (14, 14))
-
-        pygame.draw.line(s, C_BORDER, (0, 42), (MAP_W, 42), 1)
+        t = self.font_title.render("FACILITY MAP", True, C_ACCENT)
+        ms.blit(t, (s(14), s(13)))
+        pygame.draw.line(ms, C_BORDER_BRIGHT, (0, s(44)), (RMAP_W, s(44)), s(1))
 
         for src, dst, vertical in CONNECTIONS:
-            sx, sy = room_center(src)
-            dx, dy = room_center(dst)
+            self._draw_connection(ms, src, dst, vertical)
 
-            col  = C_CONN_VERT if vertical else C_CONN
-            dash = 6 if vertical else 0
+        for name in ROOM_POS:
+            self._draw_room(ms, name, current)
 
-            if dash:
-                self._draw_dashed_line(s, col, sx, sy, dx, dy, dash)
-            else:
-                pygame.draw.line(s, col, (sx, sy), (dx, dy), 1)
+        legend_y = WIN_H - 185
+        pygame.draw.line(ms, C_BORDER, (0, s(legend_y - 10)), (RMAP_W, s(legend_y - 10)), s(1))
+        self._draw_legend(ms, legend_y)
 
-            mx, my = (sx + dx) // 2, (sy + dy) // 2
-            self._draw_arrow(s, col, sx, sy, dx, dy)
+        inv_y = legend_y + 32
+        pygame.draw.line(ms, C_BORDER, (s(10), s(inv_y - 6)), (RMAP_W - s(10), s(inv_y - 6)), s(1))
+        self._draw_inv_ach(ms, inv_y)
 
-        for name, (rx, ry) in ROOM_POS.items():
-            self._draw_room(s, name, rx, ry, current_name)
+    def _draw_connection(self, ms, src, dst, vertical):
+        sx, sy = room_center(src)
+        dx, dy = room_center(dst)
 
-        legend_y = WIN_H - 175
-        pygame.draw.line(s, C_BORDER, (0, legend_y - 8), (MAP_W, legend_y - 8), 1)
-        self._legend(s, legend_y)
+        ex1, ey1 = self._edge(sx, sy, dx, dy)
+        ex2, ey2 = self._edge(dx, dy, sx, sy)
 
-        inv_y = legend_y + 30
-        pygame.draw.line(s, C_BORDER, (0, inv_y - 6), (MAP_W, inv_y - 6), 1)
-        self._draw_inv_ach(s, inv_y)
+        col = C_CONN_VERT if vertical else C_CONN
 
-    def _draw_room(self, s, name, rx, ry, current_name):
-        is_current = (name == current_name)
-        is_visited = (name in self.visited)
+        glow_surf = pygame.Surface((RMAP_W, RWIN_H), pygame.SRCALPHA)
+        alpha = int(30 + 20 * math.sin(self.conn_t * 2))
+        pygame.draw.line(glow_surf, (*C_CONN_GLOW, alpha),
+                         s((ex1, ey1)), s((ex2, ey2)), s(6))
+        ms.blit(glow_surf, (0, 0))
 
-        fill   = C_ROOM_CURRENT  if is_current else \
-                 C_ROOM_VISITED   if is_visited  else \
-                 C_ROOM_DEFAULT
-        border = C_ROOM_CUR_BDR  if is_current else C_ROOM_BORDER
-        text_c = C_ROOM_CUR_TEXT if is_current else C_ROOM_TEXT
+        if vertical:
+            self._dashed_line(ms, col, ex1, ey1, ex2, ey2, s(8), s(2))
+        else:
+            pygame.draw.line(ms, col, s((ex1, ey1)), s((ex2, ey2)), s(2))
+            pygame.gfxdraw.line(ms, *s((ex1, ey1)), *s((ex2, ey2)), (*col, 200))
 
-        rect = pygame.Rect(rx, ry, ROOM_W, ROOM_H)
+        self._arrow(ms, col, ex1, ey1, ex2, ey2)
 
-        if is_current:
-            glow_alpha = int(80 + 60 * math.sin(self.glow_t * 3))
-            glow_size  = 8
-            glow_surf  = pygame.Surface(
-                (ROOM_W + glow_size * 2, ROOM_H + glow_size * 2),
-                pygame.SRCALPHA
-            )
-            glow_col   = (*C_GLOW, glow_alpha)
-            pygame.draw.rect(
-                glow_surf, glow_col,
-                (0, 0, ROOM_W + glow_size * 2, ROOM_H + glow_size * 2),
-                border_radius=12
-            )
-            s.blit(glow_surf, (rx - glow_size, ry - glow_size))
+    def _edge(self, cx, cy, tx, ty):
+        dx, dy = tx - cx, ty - cy
+        if dx == 0 and dy == 0:
+            return cx, cy
+        hw, hh = ROOM_W / 2, ROOM_H / 2
+        sx = (hw / abs(dx)) if dx != 0 else float("inf")
+        sy = (hh / abs(dy)) if dy != 0 else float("inf")
+        t  = min(sx, sy)
+        return cx + dx * t, cy + dy * t
 
-        draw_rounded_rect(s, fill, rect, 8)
-        draw_rounded_rect(s, (0, 0, 0, 0), rect, 8,
-                          border=2, border_color=border)
-
-        label = ROOM_SHORT[name]
-        surf  = self.font_map.render(label, True, text_c)
-        lx    = rx + (ROOM_W - surf.get_width()) // 2
-        ly    = ry + (ROOM_H - surf.get_height()) // 2 - 4
-        s.blit(surf, (lx, ly))
-
-        bx = rx + 4
-        by = ry + ROOM_H - 14
-
-        room_obj = self.game.rooms[name]
-
-        if room_obj.puzzle:
-            badge_text = "✓" if room_obj.puzzle.solved else "?"
-            badge_col  = C_TEXT_GOOD if room_obj.puzzle.solved else C_BADGE_PUZZLE
-            self._badge(s, badge_text, bx, by, badge_col)
-            bx += 20
-
-        if room_obj.items:
-            self._badge(s, f"×{len(room_obj.items)}", bx, by, C_BADGE_ITEM)
-            bx += 26
-
-        if name in ("Hall", "Server Room"):
-            self._badge(s, "NPC", bx, by, C_BADGE_NPC)
-
-    def _badge(self, s, text, x, y, color):
-        surf = self.font_badge.render(text, True, C_BADGE_TEXT)
-        w    = surf.get_width() + 6
-        h    = surf.get_height() + 2
-        pygame.draw.rect(s, color, (x, y, w, h), border_radius=3)
-        s.blit(surf, (x + 3, y + 1))
-
-    def _draw_dashed_line(self, s, col, x1, y1, x2, y2, dash_len):
+    def _dashed_line(self, surf, col, x1, y1, x2, y2, dash, width):
         dx, dy = x2 - x1, y2 - y1
         dist   = math.hypot(dx, dy)
         if dist == 0:
             return
-        steps  = int(dist / dash_len)
+        steps = int(dist * SCALE / dash)
+        if steps == 0:
+            return
         for i in range(steps):
             if i % 2 == 0:
                 t0 = i / steps
                 t1 = (i + 1) / steps
-                pygame.draw.line(
-                    s, col,
-                    (int(x1 + dx * t0), int(y1 + dy * t0)),
-                    (int(x1 + dx * t1), int(y1 + dy * t1)),
-                    1
-                )
+                p0 = (int((x1 + dx * t0) * SCALE), int((y1 + dy * t0) * SCALE))
+                p1 = (int((x1 + dx * t1) * SCALE), int((y1 + dy * t1) * SCALE))
+                pygame.draw.line(surf, col, p0, p1, width)
 
-    def _draw_arrow(self, s, col, x1, y1, x2, y2):
+    def _arrow(self, surf, col, x1, y1, x2, y2):
         dx, dy = x2 - x1, y2 - y1
         dist   = math.hypot(dx, dy)
         if dist == 0:
             return
         ux, uy = dx / dist, dy / dist
-        # midpoint
-        mx = (x1 + x2) / 2
-        my = (y1 + y2) / 2
-        size = 5
-        tip  = (int(mx + ux * size), int(my + uy * size))
-        l    = (int(mx - ux * size - uy * size), int(my - uy * size + ux * size))
-        r    = (int(mx - ux * size + uy * size), int(my - uy * size - ux * size))
-        pygame.draw.polygon(s, col, [tip, l, r])
+        mx, my = (x1 + x2) / 2, (y1 + y2) / 2
+        sz = 7
+        tip = s((mx + ux * sz,      my + uy * sz))
+        l   = s((mx - ux * sz - uy * sz, my - uy * sz + ux * sz))
+        r   = s((mx - ux * sz + uy * sz, my - uy * sz - ux * sz))
+        pygame.gfxdraw.filled_polygon(surf, [tip, l, r], (*col, 220))
+        pygame.gfxdraw.aapolygon(surf, [tip, l, r], col)
 
-    def _legend(self, s, y):
+    def _draw_room(self, ms, name, current):
+        rx, ry   = ROOM_POS[name]
+        is_cur   = (name == current)
+        is_vis   = (name in self.visited)
+
+        fill     = C_ROOM_CURRENT if is_cur  else \
+                   C_ROOM_VISITED  if is_vis  else C_ROOM_DEFAULT
+        bdr      = C_ROOM_CUR_BDR if is_cur  else C_ROOM_BORDER
+        text_c   = C_ROOM_CUR_TEXT if is_cur else \
+                   C_ROOM_TEXT      if is_vis else C_ROOM_UNVIS
+
+        rrect    = pygame.Rect(s(rx), s(ry), s(ROOM_W), s(ROOM_H))
+        rr       = s(ROOM_R)
+
+        if is_cur:
+            pulse = 0.5 + 0.5 * math.sin(self.glow_t * 3.2)
+            glow_rect(ms, C_GLOW, rrect, rr,
+                      layers=5, max_alpha=int(50 + 35 * pulse))
+
+        aa_rounded_rect(ms, fill, rrect, rr)
+
+        grad = pygame.Surface((s(ROOM_W), s(ROOM_H) // 3), pygame.SRCALPHA)
+        grad.fill((255, 255, 255, 18))
+        ms.blit(grad, (s(rx), s(ry)))
+
+        aa_rounded_border(ms, bdr, rrect, rr, width=s(2))
+
+        label = ROOM_SHORT[name]
+        lsurf = self.font_map.render(label, True, text_c)
+        lx    = s(rx) + (s(ROOM_W) - lsurf.get_width()) // 2
+        ly    = s(ry) + (s(ROOM_H) - lsurf.get_height()) // 2 - s(5)
+        ms.blit(lsurf, (lx, ly))
+
+        bx = s(rx) + s(4)
+        by = s(ry) + s(ROOM_H) - s(16)
+        room_obj = self.game.rooms[name]
+
+        if room_obj.puzzle:
+            done = room_obj.puzzle.solved
+            self._badge(ms, "✓" if done else "?",
+                        bx, by,
+                        C_BADGE_PUZZLE_DONE if done else C_BADGE_PUZZLE)
+            bx += s(22)
+
+        if room_obj.items:
+            self._badge(ms, f"×{len(room_obj.items)}", bx, by, C_BADGE_ITEM)
+            bx += s(28)
+
+        if name in ("Hall", "Server Room"):
+            self._badge(ms, "NPC", bx, by, C_BADGE_NPC)
+
+    def _badge(self, surf, text, x, y, color):
+        ts   = self.font_badge.render(text, True, C_BADGE_TEXT)
+        w, h = ts.get_width() + s(6), ts.get_height() + s(2)
+        aa_rounded_rect(surf, color, pygame.Rect(x, y, w, h), s(3))
+        surf.blit(ts, (x + s(3), y + s(1)))
+
+    def _draw_legend(self, ms, y):
         items = [
             (C_ROOM_CURRENT, "Current"),
             (C_ROOM_VISITED, "Visited"),
             (C_ROOM_DEFAULT, "Unseen"),
         ]
-        x = 14
+        x = s(14)
         for col, label in items:
-            pygame.draw.rect(s, col, (x, y + 2, 10, 10), border_radius=2)
-            pygame.draw.rect(s, C_ROOM_BORDER, (x, y + 2, 10, 10), 1, border_radius=2)
+            sq = pygame.Rect(x, s(y + 3), s(11), s(11))
+            aa_rounded_rect(ms, col, sq, s(2))
+            aa_rounded_border(ms, C_ROOM_BORDER, sq, s(2), width=s(1))
             t = self.font_small.render(label, True, C_TEXT_DIM)
-            s.blit(t, (x + 14, y))
-            x += 14 + t.get_width() + 14
+            ms.blit(t, (x + s(15), s(y)))
+            x += s(15) + t.get_width() + s(16)
 
-    def _draw_inv_ach(self, s, y):
-        pad = 14
+    def _draw_inv_ach(self, ms, y):
+        pad = s(14)
+        row = s(y)
 
-        inv_label = self.font_small.render("INVENTORY", True, C_ACCENT)
-        s.blit(inv_label, (pad, y))
+        lbl = self.font_small.render("INVENTORY", True, C_ACCENT)
+        ms.blit(lbl, (pad, row))
+        row += lbl.get_height() + s(2)
 
         inv = self.game.player.inventory
-        if inv:
-            inv_text = "  ".join(i.name for i in inv)
-            col = C_TEXT
-        else:
-            inv_text = "Empty"
-            col = C_TEXT_DIM
-
-        max_w = MAP_W - pad * 2
-        words = inv_text.split("  ")
-        line = ""
-        row_y = y + 16
-        for word in words:
-            test = (line + "  " + word).strip()
-            if self.font_ui.size(test)[0] > max_w and line:
-                s.blit(self.font_ui.render(line, True, col), (pad, row_y))
-                row_y += 17
-                line = word
+        inv_col = C_TEXT if inv else C_TEXT_DIM
+        inv_items = [i.name for i in inv] if inv else ["Empty"]
+        max_w = RMAP_W - pad * 2
+        line_buf = ""
+        for word in inv_items:
+            test = (line_buf + "  " + word).strip() if line_buf else word
+            if self.font_ui.size(test)[0] > max_w and line_buf:
+                ms.blit(self.font_ui.render(line_buf, True, inv_col), (pad, row))
+                row += self.font_ui.get_height()
+                line_buf = word
             else:
-                line = test
-        if line:
-            s.blit(self.font_ui.render(line, True, col), (pad, row_y))
-        row_y += 22
+                line_buf = test
+        if line_buf:
+            ms.blit(self.font_ui.render(line_buf, True, inv_col), (pad, row))
+            row += self.font_ui.get_height() + s(8)
 
-        pygame.draw.line(s, C_BORDER, (pad, row_y), (MAP_W - pad, row_y), 1)
-        row_y += 8
+        pygame.draw.line(ms, C_BORDER, (pad, row), (RMAP_W - pad, row), s(1))
+        row += s(8)
 
-        ach_label = self.font_small.render("ACHIEVEMENTS", True, C_ACCENT)
-        s.blit(ach_label, (pad, row_y))
-        row_y += 16
+        lbl2 = self.font_small.render("ACHIEVEMENTS", True, C_ACCENT)
+        ms.blit(lbl2, (pad, row))
+        row += lbl2.get_height() + s(2)
 
         ach = sorted(self.game.achievements.unlocked)
         if ach:
-            for achievement in ach:
-                dot = self.font_ui.render("✓ " + achievement, True, C_TEXT_GOOD)
-                s.blit(dot, (pad, row_y))
-                row_y += 17
+            for a in ach:
+                as_ = self.font_ui.render("✓ " + a, True, C_TEXT_GOOD)
+                ms.blit(as_, (pad, row))
+                row += as_.get_height() + s(1)
         else:
-            none_surf = self.font_ui.render("None yet", True, C_TEXT_DIM)
-            s.blit(none_surf, (pad, row_y))
+            ns = self.font_ui.render("None yet", True, C_TEXT_DIM)
+            ms.blit(ns, (pad, row))
 
     def _draw_panel(self):
-        s = self.panel_surf
-        s.fill(C_PANEL_BG)
+        ps = self.panel_surf
+        ps.fill(C_PANEL_BG)
 
-        title_surf = self.font_title.render(
-            "ESCAPE PYTHON  //  THE TRUTH EXPERIMENT", True, C_ACCENT
-        )
-        s.blit(title_surf, (16, 12))
-        pygame.draw.line(s, C_BORDER, (0, 38), (PANEL_W, 38), 1)
+        ts = self.font_title.render(
+            "ESCAPE PYTHON  //  THE TRUTH EXPERIMENT", True, C_ACCENT)
+        ps.blit(ts, (s(16), s(11)))
+        pygame.draw.line(ps, C_BORDER_BRIGHT, (0, s(40)), (RPANEL_W, s(40)), s(1))
 
-        out_h      = WIN_H - 38 - 36 - 44  # minus title, location bar, input
-        line_h     = 19
-        visible    = out_h // line_h
-        total      = len(self.output_lines)
-        start      = max(0, total - visible - self.scroll_offset)
-        end        = min(total, start + visible)
-        lines_show = self.output_lines[start:end]
+        line_h  = self.font_ui.get_height() + s(2)
+        out_top = s(46)
+        loc_h   = s(36)
+        inp_h   = s(46)
+        out_h   = RWIN_H - out_top - loc_h - inp_h
+        visible = max(1, out_h // line_h)
 
-        oy = 44
-        for text, tag in lines_show:
+        total  = len(self.output_lines)
+        start  = max(0, total - visible - self.scroll_offset)
+        end    = min(total, start + visible)
+
+        oy = out_top
+        for text, tag in self.output_lines[start:end]:
             col  = TAG_COLORS.get(tag, C_TEXT)
             font = self.font_ui_b if tag in ("accent", "system", "good") else self.font_ui
             if text:
-                surf = font.render(text[:90], True, col)
-                s.blit(surf, (16, oy))
+                ts2 = font.render(text[:88], True, col)
+                ps.blit(ts2, (s(16), oy))
             oy += line_h
 
-        sb_x = PANEL_W - 10
-        sb_h = WIN_H - 38 - 36 - 44
-        pygame.draw.rect(s, C_BORDER, (sb_x, 44, 6, sb_h), border_radius=3)
+        sb_x = RPANEL_W - s(10)
+        sb_h = out_h
+        aa_rounded_rect(ps, C_BORDER, pygame.Rect(sb_x, out_top, s(6), sb_h), s(3))
         if total > visible:
-            thumb_h  = max(20, int(sb_h * visible / total))
-            max_off  = total - visible
-            ratio    = 1.0 - (self.scroll_offset / max_off) if max_off > 0 else 1.0
-            thumb_y  = 44 + int((sb_h - thumb_h) * ratio)
-            pygame.draw.rect(s, C_TEXT_DIM, (sb_x, thumb_y, 6, thumb_h), border_radius=3)
+            th    = max(s(20), int(sb_h * visible / total))
+            mo    = total - visible
+            ratio = 1.0 - (self.scroll_offset / mo) if mo > 0 else 1.0
+            ty    = out_top + int((sb_h - th) * ratio)
+            aa_rounded_rect(ps, C_TEXT_DIM, pygame.Rect(sb_x, ty, s(6), th), s(3))
 
-        loc_y = WIN_H - 44 - 36
-        pygame.draw.line(s, C_BORDER, (0, loc_y), (PANEL_W, loc_y), 1)
+        loc_y = RWIN_H - loc_h - inp_h
+        pygame.draw.line(ps, C_BORDER_BRIGHT, (0, loc_y), (RPANEL_W, loc_y), s(1))
         loc_name = self.game.player.current_room.name.upper()
-        loc_surf = self.font_ui_b.render(f"  LOCATION: {loc_name}", True, C_ACCENT)
-        hint     = self.font_small.render(
-            "  scroll: mouse wheel  |  history: ↑↓", True, C_TEXT_DIM
-        )
-        s.blit(loc_surf, (0, loc_y + 8))
-        s.blit(hint, (loc_surf.get_width() + 10, loc_y + 10))
+        loc_s = self.font_loc.render(f"  LOCATION: {loc_name}", True, C_ACCENT)
+        hint_s = self.font_small.render(
+            "  scroll: wheel  |  history: ↑↓  |  clear: ESC", True, C_TEXT_DIM)
+        ps.blit(loc_s,  (0,  loc_y + s(8)))
+        ps.blit(hint_s, (loc_s.get_width(), loc_y + s(10)))
 
-        # Input bar
-        inp_y = WIN_H - 44
-        pygame.draw.line(s, C_BORDER, (0, inp_y), (PANEL_W, inp_y), 1)
-        pygame.draw.rect(s, C_INPUT_BG, (0, inp_y, PANEL_W, 44))
-        pygame.draw.rect(s, C_INPUT_BORDER, (0, inp_y, PANEL_W, 44), 1)
+        inp_y = RWIN_H - inp_h
+        pygame.draw.line(ps, C_BORDER_BRIGHT, (0, inp_y), (RPANEL_W, inp_y), s(1))
+        aa_rounded_rect(ps, C_INPUT_BG, pygame.Rect(0, inp_y, RPANEL_W, inp_h), 0)
 
-        prompt = self.font_input.render(">", True, C_ACCENT)
-        s.blit(prompt, (12, inp_y + 12))
+        pr = self.font_input.render(">", True, C_ACCENT)
+        ps.blit(pr, (s(12), inp_y + s(11)))
 
-        inp_display = self.input_text
-        inp_surf    = self.font_input.render(inp_display, True, C_TEXT)
-        s.blit(inp_surf, (32, inp_y + 12))
+        it = self.font_input.render(self.input_text, True, C_TEXT)
+        ps.blit(it, (s(34), inp_y + s(11)))
 
         if self.cursor_vis:
-            cx = 32 + self.font_input.size(inp_display)[0]
-            pygame.draw.rect(s, C_CURSOR, (cx, inp_y + 13, 2, 18))
+            cx = s(34) + self.font_input.size(self.input_text)[0]
+            pygame.draw.rect(ps, C_CURSOR,
+                             pygame.Rect(cx, inp_y + s(12), s(2), s(20)))
 
     def _update_particles(self):
         self.particles = [p for p in self.particles if p.update()]
 
-    def _draw_particles(self):
+    def _draw_particles(self, surf):
         for p in self.particles:
-            p.draw(self.screen, MAP_W)
+            p.draw(surf)
 
     def run(self):
         running = True
-
         while running:
             dt = self.clock.tick(FPS) / 1000.0
             self.glow_t      += dt
+            self.conn_t      += dt
             self.cursor_timer += dt
-            if self.cursor_timer > 0.53:
+            if self.cursor_timer > 0.52:
                 self.cursor_vis   = not self.cursor_vis
                 self.cursor_timer = 0.0
 
             for event in pygame.event.get():
-
                 if event.type == pygame.QUIT:
                     running = False
-
                 elif event.type == pygame.KEYDOWN:
                     self._handle_key(event)
-
                 elif event.type == pygame.MOUSEWHEEL:
+                    line_h  = self.font_ui.get_height() + s(2)
+                    out_h   = RWIN_H - s(46) - s(36) - s(46)
+                    visible = max(1, out_h // line_h)
                     total   = len(self.output_lines)
-                    visible = (WIN_H - 38 - 36 - 44) // 19
                     max_off = max(0, total - visible)
                     self.scroll_offset = max(
                         0, min(max_off, self.scroll_offset - event.y)
                     )
-
                 elif event.type == pygame.TEXTINPUT:
                     if len(self.input_text) < INPUT_MAX:
                         self.input_text += event.text
 
             self._update_particles()
 
-            self.screen.fill(C_BG)
-
             self._draw_map()
             self._draw_panel()
+            self._draw_particles(self.map_surf)
 
-            self.screen.blit(self.map_surf,   (0, 0))
-            self.screen.blit(self.panel_surf, (MAP_W, 0))
+            self.render_surf.fill(C_BG)
+            self.render_surf.blit(self.map_surf,   (0, 0))
+            self.render_surf.blit(self.panel_surf, (RMAP_W, 0))
+            pygame.draw.line(self.render_surf, C_BORDER_BRIGHT,
+                             (RMAP_W, 0), (RMAP_W, RWIN_H), s(1))
 
-            pygame.draw.line(
-                self.screen, C_BORDER,
-                (MAP_W, 0), (MAP_W, WIN_H), 1
-            )
-
-            self._draw_particles()
-
+            scaled = pygame.transform.smoothscale(self.render_surf, (WIN_W, WIN_H))
+            self.screen.blit(scaled, (0, 0))
             pygame.display.flip()
 
         pygame.quit()
@@ -589,10 +622,8 @@ class EscapePygameGUI:
     def _handle_key(self, event):
         if event.key == pygame.K_RETURN:
             self._submit()
-
         elif event.key == pygame.K_BACKSPACE:
             self.input_text = self.input_text[:-1]
-
         elif event.key == pygame.K_UP:
             if self.history:
                 if self.history_pos == -1:
@@ -600,7 +631,6 @@ class EscapePygameGUI:
                 elif self.history_pos > 0:
                     self.history_pos -= 1
                 self.input_text = self.history[self.history_pos]
-
         elif event.key == pygame.K_DOWN:
             if self.history_pos != -1:
                 if self.history_pos < len(self.history) - 1:
@@ -609,18 +639,18 @@ class EscapePygameGUI:
                 else:
                     self.history_pos = -1
                     self.input_text  = ""
-
         elif event.key == pygame.K_ESCAPE:
             self.input_text = ""
-
         elif event.key == pygame.K_PAGEUP:
+            line_h  = self.font_ui.get_height() + s(2)
+            out_h   = RWIN_H - s(46) - s(36) - s(46)
+            visible = max(1, out_h // line_h)
             total   = len(self.output_lines)
-            visible = (WIN_H - 38 - 36 - 44) // 19
             max_off = max(0, total - visible)
             self.scroll_offset = min(max_off, self.scroll_offset + visible // 2)
-
         elif event.key == pygame.K_PAGEDOWN:
-            self.scroll_offset = max(0, self.scroll_offset - VISIBLE_LINES // 2)
+            self.scroll_offset = max(0, self.scroll_offset - 5)
+
 
 def main():
     gui = EscapePygameGUI()
