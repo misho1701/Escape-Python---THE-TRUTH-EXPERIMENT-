@@ -12,6 +12,10 @@ from achievements import Achievements
 from endings import Endings
 from save_manager import SaveManager
 from game import Game
+os.environ["SDL_VIDEODRIVER"] = "dummy"
+
+import pygame
+from gui import EscapePygameGUI
 
 
 class TestRoom(unittest.TestCase):
@@ -49,7 +53,7 @@ class TestRoom(unittest.TestCase):
 
     def test_remove_item_not_present(self):
         item = Item("Key", "A key.")
-        self.room.remove_item(item)  # should not raise
+        self.room.remove_item(item)
 
     def test_list_items_empty(self):
         self.assertEqual(self.room.list_items(), "No visible items.")
@@ -281,7 +285,7 @@ class TestNPC(unittest.TestCase):
         self.assertEqual(self.npc.state, "start")
 
     def test_choose_no_options_available(self):
-        self.npc.choose(1)  # move to greet (no options)
+        self.npc.choose(1)
         result = self.npc.choose(1)
         self.assertTrue(
             "Invalid" in result or "No choices" in result
@@ -551,6 +555,7 @@ class TestGameMovement(unittest.TestCase):
     def test_vent_opens_with_tool(self):
         self.game.player.current_room = self.game.hall
         self.game.player.inventory.append(Item("VentTool", ""))
+        self.game.process("use VentTool")
         result = self.game.process("go north")
         self.assertEqual(self.game.player.current_room.name, "Ventilation Shaft")
 
@@ -571,12 +576,14 @@ class TestGameMovement(unittest.TestCase):
     def test_vent_achievement_unlocked(self):
         self.game.player.current_room = self.game.hall
         self.game.player.inventory.append(Item("VentTool", ""))
+        self.game.process("use VentTool")
         self.game.process("go north")
         self.assertIn("Air Crawler", self.game.achievements.unlocked)
 
     def test_vent_achievement_only_once(self):
         self.game.player.current_room = self.game.hall
         self.game.player.inventory.append(Item("VentTool", ""))
+        self.game.process("use VentTool")
         self.game.process("go north")
         self.game.process("go south")
         self.game.process("go north")
@@ -855,7 +862,7 @@ class TestGameNPCs(unittest.TestCase):
 
     def test_guard_silent_path_sets_trusted(self):
         self.game.process("talk")
-        self.game.process("choose 4")  # ... (silent)
+        self.game.process("choose 4")
         self.assertTrue(self.game.flags["trusted_guard"])
 
     def test_guard_exit_hint_sets_trusted(self):
@@ -1098,6 +1105,107 @@ class TestGameCommands(unittest.TestCase):
         result = self.game.process("inspect")
         self.assertIn("what", result.lower())
 
+class TestEscapePygameGUI(unittest.TestCase):
+
+    def setUp(self):
+        pygame.init()
+        self.gui = EscapePygameGUI()
+
+    def tearDown(self):
+        pygame.quit()
+
+    def test_initial_state(self):
+        self.assertEqual(self.gui.game.player.current_room.name, "Cell")
+        self.assertTrue(len(self.gui.output_lines) > 0)
+
+    def test_welcome_message_exists(self):
+        text = " ".join(line for line, _ in self.gui.output_lines)
+        self.assertIn("ESCAPE PYTHON", text)
+
+    def test_submit_empty_command(self):
+        self.gui.input_text = ""
+        self.gui._submit()
+        self.assertEqual(self.gui.input_text, "")
+
+    def test_submit_look_command(self):
+        self.gui.input_text = "look"
+        self.gui._submit()
+
+        outputs = [t for t, _ in self.gui.output_lines]
+        self.assertTrue(any("look" in o.lower() for o in outputs))
+
+    def test_submit_go_executes_without_crash(self):
+        self.gui.input_text = "go east"
+        self.gui._submit()
+        self.assertTrue(len(self.gui.output_lines) > 0)
+
+    def test_history_is_stored(self):
+        self.gui.input_text = "look"
+        self.gui._submit()
+
+        self.assertIn("look", self.gui.history)
+
+    def test_history_navigation_up(self):
+        self.gui.history = ["look", "go east"]
+        self.gui.history_pos = -1
+
+        event = type("E", (), {"key": pygame.K_UP})
+        self.gui._handle_key(event)
+
+        self.assertEqual(self.gui.input_text, "go east")
+
+    def test_history_navigation_down(self):
+        self.gui.history = ["look", "go east"]
+        self.gui.history_pos = 1
+        self.gui.input_text = "go east"
+
+        event = type("E", (), {"key": pygame.K_DOWN})
+        self.gui._handle_key(event)
+
+        self.assertIn(self.gui.input_text, ["look", ""])
+
+    def test_escape_clears_input(self):
+        self.gui.input_text = "something"
+
+        event = type("E", (), {"key": pygame.K_ESCAPE})
+        self.gui._handle_key(event)
+
+        self.assertEqual(self.gui.input_text, "")
+
+    def test_backspace_removes_char(self):
+        self.gui.input_text = "abc"
+
+        event = type("E", (), {"key": pygame.K_BACKSPACE})
+        self.gui._handle_key(event)
+
+        self.assertEqual(self.gui.input_text, "ab")
+
+    def test_visited_rooms_tracking(self):
+        self.gui.input_text = "go east"
+        self.gui._submit()
+
+        current = self.gui.game.player.current_room.name
+        self.assertIn(current, self.gui.visited)
+
+    def test_particles_spawn_on_movement(self):
+        self.gui.input_text = "go east"
+        self.gui._submit()
+        self.assertIsInstance(self.gui.particles, list)
+
+    def test_output_buffer_limit(self):
+        for i in range(500):
+            self.gui._print(f"line {i}")
+
+        self.assertLessEqual(len(self.gui.output_lines), 400)
+
+    def test_draw_map_no_crash(self):
+        self.gui._draw_map()
+
+    def test_draw_panel_no_crash(self):
+        self.gui._draw_panel()
+
+    def test_update_particles_no_crash(self):
+        self.gui._update_particles()
 
 if __name__ == "__main__":
     unittest.main(verbosity=2)
