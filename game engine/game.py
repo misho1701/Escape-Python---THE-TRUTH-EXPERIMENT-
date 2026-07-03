@@ -33,6 +33,7 @@ class Game:
             "exit_card_used": False,
             "exit_power_cut": False,
             "cell_unlocked": False,
+            "ventilation_unlocked": False,
         }
 
         self.create_world()
@@ -814,7 +815,7 @@ System:
                     )
 
             if room == self.hall and direction == "north":
-                if not self.player.has_item("VentTool"):
+                if not self.flags["ventilation_unlocked"]:
                     return (
                         "The ventilation grate is bolted shut.\n"
                         "You need something to unscrew it."
@@ -1170,6 +1171,9 @@ System:
 
         if item.name == "VentTool":
             if room == self.hall:
+                if self.flags["ventilation_unlocked"]:
+                    return "Ventilation already unscrewed"
+                self.flags["ventilation_unlocked"] = True
                 self._consume("VentTool")
                 return (
                     "You use the VentTool to unscrew the ventilation grate bolts.\n"
