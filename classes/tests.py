@@ -522,7 +522,8 @@ class TestGameWorld(unittest.TestCase):
             "met_guard", "trusted_guard", "found_truth",
             "lab_unlocked", "vent_crawled", "server_hacked",
             "guard_alarmed", "scientist_met", "scientist_trusted",
-            "exit_card_used", "exit_power_cut", "cell_unlocked"
+            "exit_card_used", "exit_power_cut", "cell_unlocked",
+            "ventilation_unlocked", "card_repaired"
         ]
         for flag in expected_flags:
             self.assertIn(flag, self.game.flags)
@@ -547,6 +548,7 @@ class TestGameMovement(unittest.TestCase):
 
     def test_vent_blocked_without_tool(self):
         self.game.flags["cell_unlocked"] = True
+        self.game.flags["ventilation_unlocked"] = False
         self.game.player.current_room = self.game.hall
         result = self.game.process("go north")
         self.assertIn("bolted", result.lower())
@@ -554,7 +556,7 @@ class TestGameMovement(unittest.TestCase):
 
     def test_vent_opens_with_tool(self):
         self.game.player.current_room = self.game.hall
-        self.game.player.inventory.append(Item("VentTool", ""))
+        self.game.player.inventory.append(Item("VentTool", "", usable=True))
         self.game.process("use VentTool")
         result = self.game.process("go north")
         self.assertEqual(self.game.player.current_room.name, "Ventilation Shaft")
@@ -575,14 +577,14 @@ class TestGameMovement(unittest.TestCase):
 
     def test_vent_achievement_unlocked(self):
         self.game.player.current_room = self.game.hall
-        self.game.player.inventory.append(Item("VentTool", ""))
+        self.game.player.inventory.append(Item("VentTool", "", usable=True))
         self.game.process("use VentTool")
         self.game.process("go north")
         self.assertIn("Air Crawler", self.game.achievements.unlocked)
 
     def test_vent_achievement_only_once(self):
         self.game.player.current_room = self.game.hall
-        self.game.player.inventory.append(Item("VentTool", ""))
+        self.game.player.inventory.append(Item("VentTool", "", usable=True))
         self.game.process("use VentTool")
         self.game.process("go north")
         self.game.process("go south")
@@ -657,6 +659,7 @@ class TestGameItemUsage(unittest.TestCase):
         result = self.game.process("use VentTool")
         self.assertIn("grate", result.lower())
         self.assertFalse(self.game.player.has_item("VentTool"))
+        self.assertTrue(self.game.flags["ventilation_unlocked"])
 
     def test_use_venttool_wrong_room(self):
         self._give("VentTool")
@@ -664,25 +667,44 @@ class TestGameItemUsage(unittest.TestCase):
         self.assertIn("nothing", result.lower())
         self.assertTrue(self.game.player.has_item("VentTool"))
 
-    def test_use_keycard_without_fragment(self):
-        self.game.player.current_room = self.game.exit_room
-        self._give("AccessCard")
-        result = self.game.process("use AccessCard")
-        self.assertIn("REJECTED", result)
-        self.assertTrue(self.game.player.has_item("AccessCard"))
+    def test_use_venttool_already_unlocked(self):
+        self.game.player.current_room = self.game.hall
+        self.game.flags["ventilation_unlocked"] = True
+        self._give("VentTool")
+        result = self.game.process("use VentTool")
+        self.assertIn("already", result.lower())
 
-    def test_use_keycard_with_fragment(self):
+    def test_use_keycard_without_repair(self):
         self.game.player.current_room = self.game.exit_room
         self._give("AccessCard", "KeycardFragment")
         result = self.game.process("use AccessCard")
-        self.assertTrue(self.game.flags["exit_card_used"])
+        self.assertIn("REJECTED", result)
+        self.assertFalse(self.game.flags["exit_card_used"])
+        self.assertTrue(self.game.player.has_item("AccessCard"))
+
+    def test_use_keycard_after_repair(self):
+        self.game.player.current_room = self.game.exit_room
+        self.game.flags["card_repaired"] = True
+        self._give("AccessCard")
+        result = self.game.process("use AccessCard")
         self.assertIn("CLICK", result)
+        self.assertTrue(self.game.flags["exit_card_used"])
         self.assertFalse(self.game.player.has_item("AccessCard"))
+
+    def test_use_keycard_repair_elsewhere_then_swipe(self):
+        self.game.player.current_room = self.game.lab
+        self._give("AccessCard", "KeycardFragment")
+        self.game.process("use KeycardFragment")
+        self.game.player.current_room = self.game.exit_room
+        result = self.game.process("use AccessCard")
+        self.assertIn("CLICK", result)
+        self.assertTrue(self.game.flags["exit_card_used"])
 
     def test_use_keycard_already_used(self):
         self.game.player.current_room = self.game.exit_room
         self.game.flags["exit_card_used"] = True
-        self._give("AccessCard", "KeycardFragment")
+        self.game.flags["card_repaired"] = True
+        self._give("AccessCard")
         result = self.game.process("use AccessCard")
         self.assertIn("already", result.lower())
 
@@ -743,10 +765,11 @@ class TestGameItemUsage(unittest.TestCase):
         result = self.game.process("use")
         self.assertIn("what", result.lower())
 
-    def test_keycard_fragment_with_access_card(self):
+    def test_keycard_fragment_repairs_accesscard(self):
         self._give("KeycardFragment", "AccessCard")
         result = self.game.process("use KeycardFragment")
         self.assertIn("restored", result.lower())
+        self.assertTrue(self.game.flags["card_repaired"])
         self.assertFalse(self.game.player.has_item("KeycardFragment"))
         self.assertTrue(self.game.player.has_item("AccessCard"))
 
@@ -754,7 +777,21 @@ class TestGameItemUsage(unittest.TestCase):
         self._give("KeycardFragment")
         result = self.game.process("use KeycardFragment")
         self.assertIn("AccessCard", result)
+        self.assertFalse(self.game.flags["card_repaired"])
         self.assertTrue(self.game.player.has_item("KeycardFragment"))
+
+    def test_keycard_fragment_already_repaired(self):
+        self.game.flags["card_repaired"] = True
+        self._give("KeycardFragment", "AccessCard")
+        result = self.game.process("use KeycardFragment")
+        self.assertIn("already", result.lower())
+
+    def test_keycard_fragment_repair_in_any_room(self):
+        self.game.player.current_room = self.game.server_room
+        self._give("KeycardFragment", "AccessCard")
+        result = self.game.process("use KeycardFragment")
+        self.assertTrue(self.game.flags["card_repaired"])
+        self.assertIn("restored", result.lower())
 
 
 class TestGamePuzzles(unittest.TestCase):
