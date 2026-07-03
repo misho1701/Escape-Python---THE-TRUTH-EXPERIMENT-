@@ -34,6 +34,7 @@ class Game:
             "exit_power_cut": False,
             "cell_unlocked": False,
             "ventilation_unlocked": False,
+            "card_repaired": False,
         }
 
         self.create_world()
@@ -1184,12 +1185,15 @@ System:
 
         if item.name == "KeycardFragment":
             if self.player.has_item("AccessCard"):
+                if self.flags["card_repaired"]:
+                    return "The AccessCard is already fully restored."
+                self.flags["card_repaired"] = True
                 self._consume("KeycardFragment")
                 return (
                     "You press the Fragment against the AccessCard's broken edge.\n"
                     "The chips align. The card crackles and glows faintly.\n"
                     "The AccessCard has been fully restored!\n"
-                    "(The card reader at the Exit will accept it now.)"
+                    "It will work at the Exit card reader now."
                 )
             return "The fragment is incomplete. You need the other half — an AccessCard."
 
@@ -1230,12 +1234,13 @@ System:
         if self.flags["exit_card_used"]:
             return "Lock 1 is already disengaged. The card reader is dark."
 
-        if not self.player.has_item("KeycardFragment"):
+        if not self.flags["card_repaired"]:
             return (
                 "You swipe the AccessCard.\n"
                 "The reader BEEPS — REJECTED.\n"
                 "A display flashes: 'CARD INTEGRITY FAILURE. CHIP INCOMPLETE.'\n\n"
-                "The card seems damaged. You need to repair it first.\n"
+                "The card is damaged. Find the KeycardFragment and combine it\n"
+                "with the AccessCard first.\n"
                 "Hint: find the missing KeycardFragment."
             )
 
