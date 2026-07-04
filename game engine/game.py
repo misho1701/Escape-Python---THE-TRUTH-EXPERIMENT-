@@ -754,8 +754,10 @@ Puzzles:
   status             show exit door lock status (in Exit room)
 
 System:
-  save               save the game
-  load               load the game
+  save [slot]        save the game (slot 1–3, default 1)
+  load [slot]        load the game (slot 1–3, default 1)
+  saves              list all save slots
+  deletesave <slot>  delete a save slot
   achievements       show unlocked achievements
   help               show this menu
   quit               exit the game
@@ -1002,12 +1004,26 @@ System:
             return self.achievements.show()
 
         elif action == "save":
-            SaveManager.save(self)
-            return "Game saved."
+            slot = int(parts[1]) if len(parts) > 1 and parts[1].isdigit() else 1
+            return SaveManager.save(self, slot)
 
         elif action == "load":
-            data = SaveManager.load()
-            return self.apply_load(data)
+            slot = int(parts[1]) if len(parts) > 1 and parts[1].isdigit() else 1
+            data, error = SaveManager.load(slot)
+            if error and not data:
+                return error
+            result = self.apply_load(data)
+            if error:
+                result += f"\nNote: {error}"
+            return result
+
+        elif action == "saves":
+            return SaveManager.list_saves()
+
+        elif action == "deletesave":
+            if len(parts) < 2 or not parts[1].isdigit():
+                return "Usage: deletesave <slot>"
+            return SaveManager.delete(int(parts[1]))
 
         elif action == "help":
             return self.help()
@@ -1342,5 +1358,9 @@ System:
         self.flags = data.get("flags", self.flags)
         self.achievements.unlocked = set(data.get("achievements", []))
         self.failed_attempts = data.get("failed_attempts", 0)
+
+        for room_name in data.get("solved_puzzles", []):
+            if room_name in self.rooms and self.rooms[room_name].puzzle:
+                self.rooms[room_name].puzzle.solved = True
 
         return "Game loaded successfully."
