@@ -1,6 +1,7 @@
 import unittest
 import json
 import os
+import shutil
 import tempfile
 
 from room import Room
@@ -388,63 +389,150 @@ class TestEndings(unittest.TestCase):
 
 class TestSaveManager(unittest.TestCase):
 
+    SLOT = 1
+
     def setUp(self):
         self.game = Game()
-        self.save_file = "test_save.json"
+        SaveManager._ensure_dir()
 
     def tearDown(self):
-        if os.path.exists(self.save_file):
-            os.remove(self.save_file)
-        if os.path.exists("save.json"):
-            os.remove("save.json")
+        import shutil
+        if os.path.exists("saves"):
+            shutil.rmtree("saves")
+
+    def _save(self, slot=1):
+        return SaveManager.save(self.game, slot)
+
+    def _load(self, slot=1):
+        return SaveManager.load(slot)
 
     def test_save_creates_file(self):
-        SaveManager.save(self.game)
-        self.assertTrue(os.path.exists("save.json"))
+        self._save()
+        self.assertTrue(os.path.exists(SaveManager._path(1)))
 
     def test_save_contains_room(self):
-        SaveManager.save(self.game)
-        with open("save.json") as f:
-            data = json.load(f)
-        self.assertIn("current_room", data)
+        self._save()
+        data, _ = self._load()
         self.assertEqual(data["current_room"], "Cell")
 
     def test_save_contains_inventory(self):
         self.game.player.inventory.append(Item("Key", "A key."))
-        SaveManager.save(self.game)
-        with open("save.json") as f:
-            data = json.load(f)
+        self._save()
+        data, _ = self._load()
         self.assertIn("Key", data["inventory"])
 
     def test_save_contains_flags(self):
         self.game.flags["found_truth"] = True
-        SaveManager.save(self.game)
-        with open("save.json") as f:
-            data = json.load(f)
+        self._save()
+        data, _ = self._load()
         self.assertTrue(data["flags"]["found_truth"])
 
     def test_save_contains_achievements(self):
         self.game.achievements.unlock("Test")
-        SaveManager.save(self.game)
-        with open("save.json") as f:
-            data = json.load(f)
+        self._save()
+        data, _ = self._load()
         self.assertIn("Test", data["achievements"])
 
+    def test_save_contains_timestamp(self):
+        self._save()
+        data, _ = self._load()
+        self.assertIn("saved_at", data)
+        self.assertIn("-", data["saved_at"])
+
+    def test_save_contains_solved_puzzles(self):
+        self.game.vent.puzzle.solved = True
+        self._save()
+        data, _ = self._load()
+        self.assertIn("Ventilation Shaft", data["solved_puzzles"])
+
     def test_load_no_file(self):
-        result = SaveManager.load()
-        self.assertIsNone(result)
+        data, error = self._load(slot=2)
+        self.assertIsNone(data)
+        self.assertIn("No save", error)
+
+    def test_load_invalid_slot(self):
+        data, error = SaveManager.load(9)
+        self.assertIsNone(data)
+        self.assertIn("Invalid", error)
+
+    def test_save_invalid_slot(self):
+        result = SaveManager.save(self.game, 9)
+        self.assertIn("Invalid", result)
 
     def test_save_and_load_round_trip(self):
         self.game.flags["found_truth"] = True
         self.game.achievements.unlock("Puzzle Solver")
-        SaveManager.save(self.game)
-
+        self._save()
         game2 = Game()
-        data = SaveManager.load()
+        data, _ = self._load()
         game2.apply_load(data)
-
         self.assertTrue(game2.flags["found_truth"])
         self.assertIn("Puzzle Solver", game2.achievements.unlocked)
+
+    def test_round_trip_restores_solved_puzzles(self):
+        self.game.player.current_room = self.game.vent
+        self.game.process("solve center")
+        self._save()
+        game2 = Game()
+        data, _ = self._load()
+        game2.apply_load(data)
+        self.assertTrue(game2.vent.puzzle.solved)
+
+    def test_multiple_slots_independent(self):
+        self.game.flags["found_truth"] = True
+        self._save(slot=1)
+        self.game.flags["found_truth"] = False
+        self._save(slot=2)
+        data1, _ = self._load(slot=1)
+        data2, _ = self._load(slot=2)
+        self.assertTrue(data1["flags"]["found_truth"])
+        self.assertFalse(data2["flags"]["found_truth"])
+
+    def test_backup_created_on_overwrite(self):
+        self._save()
+        self._save()
+        self.assertTrue(os.path.exists(SaveManager._path(1) + ".bak"))
+
+    def test_load_corrupted_file_returns_error(self):
+        self._save()
+        with open(SaveManager._path(1), "w") as f:
+            f.write("not valid json {{{}")
+        data, error = self._load()
+        self.assertIsNotNone(error)
+
+    def test_load_corrupted_falls_back_to_backup(self):
+        self._save()
+        self._save()
+        with open(SaveManager._path(1), "w") as f:
+            f.write("broken")
+        data, error = self._load()
+        self.assertIsNotNone(data)
+
+    def test_list_saves_shows_all_slots(self):
+        self._save(slot=1)
+        result = SaveManager.list_saves()
+        self.assertIn("Slot 1", result)
+        self.assertIn("Slot 2", result)
+        self.assertIn("Slot 3", result)
+
+    def test_list_saves_shows_room(self):
+        self._save(slot=1)
+        result = SaveManager.list_saves()
+        self.assertIn("Cell", result)
+
+    def test_list_saves_empty_slot(self):
+        result = SaveManager.list_saves()
+        self.assertIn("empty", result)
+
+    def test_delete_save(self):
+        self._save()
+        result = SaveManager.delete(1)
+        self.assertIn("deleted", result.lower())
+        self.assertFalse(os.path.exists(SaveManager._path(1)))
+
+    def test_delete_empty_slot(self):
+        result = SaveManager.delete(2)
+        self.assertIn("already empty", result.lower())
 
     def test_apply_load_invalid_room(self):
         result = self.game.apply_load({"current_room": "NonExistent"})
@@ -456,9 +544,10 @@ class TestSaveManager(unittest.TestCase):
 
     def test_apply_load_restores_room(self):
         self.game.player.current_room = self.game.hall
-        SaveManager.save(self.game)
+        self._save()
         game2 = Game()
-        game2.apply_load(SaveManager.load())
+        data, _ = self._load()
+        game2.apply_load(data)
         self.assertEqual(game2.player.current_room.name, "Hall")
 
 
@@ -1115,15 +1204,34 @@ class TestGameCommands(unittest.TestCase):
 
     def test_save_command(self):
         result = self.game.process("save")
-        self.assertIn("saved", result.lower())
-        self.assertTrue(os.path.exists("save.json"))
-        os.remove("save.json")
+        self.assertIn("slot 1", result.lower())
+        self.assertTrue(os.path.exists(SaveManager._path(1)))
+        shutil.rmtree("saves", ignore_errors=True)
+
+    def test_save_command_specific_slot(self):
+        result = self.game.process("save 2")
+        self.assertIn("slot 2", result.lower())
+        shutil.rmtree("saves", ignore_errors=True)
 
     def test_load_no_save(self):
-        if os.path.exists("save.json"):
-            os.remove("save.json")
+        shutil.rmtree("saves", ignore_errors=True)
         result = self.game.process("load")
         self.assertIn("No save", result)
+
+    def test_saves_command(self):
+        result = self.game.process("saves")
+        self.assertIn("Slot 1", result)
+        self.assertIn("Slot 2", result)
+        self.assertIn("Slot 3", result)
+
+    def test_deletesave_command(self):
+        self.game.process("save 3")
+        result = self.game.process("deletesave 3")
+        self.assertIn("deleted", result.lower())
+
+    def test_deletesave_without_slot(self):
+        result = self.game.process("deletesave")
+        self.assertIn("Usage", result)
 
     def test_look_in_exit_room_shows_status(self):
         self.game.player.current_room = self.game.exit_room
